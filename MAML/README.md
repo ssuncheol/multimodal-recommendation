@@ -38,7 +38,7 @@ The following results will be saved in ```<Your save path>```
 | Argument | Type | Description | Default | Paper |
 |:---:|:---:|:---:|:---:|:---:|
 |save_path|str|Path to save result|'./result'|-|
-|data_path|str|Name of dataset|'amazon'|-|
+|data_path|str|Dataset|'amazon'|-|
 |data_path|str|Path to dataset|'./Data/Office'|-|
 |batch_size|int|Train batch size|1024|-|
 |epoch|int|Train epoch|1000|maximum 1000|
