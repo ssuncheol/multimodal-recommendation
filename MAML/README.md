@@ -2,7 +2,7 @@
 Pytorch implementation of [User Diverse Preferences Modeling By Multimodal Attentive Metric Learning(Liu et al., 2019)](https://dl.acm.org/doi/abs/10.1145/3343031.3350953)
 
 ## Data preparation
-### 1) Amazon review dataset
+#### 1) Amazon review dataset
 Data should be prepared as follows
 - train.csv (Rating data for train)
 - test.csv (Rating data for test)
@@ -12,7 +12,7 @@ Data should be prepared as follows
 Amazon Review(Office) Dataset can be downloaded here<br>
 [Office dataset](https://drive.google.com/drive/folders/19pfDw8fpIfcI4B2oncygxo9OJKo9apG2?usp=sharing)
 
-### 2) Movielens dataset
+#### 2) Movielens dataset
 Data should be prepared as follows
 - movie_3953.ftr (Rating data)
 - movies.csv (Information of movie)
@@ -38,6 +38,7 @@ The following results will be saved in ```<Your save path>```
 | Argument | Type | Description | Default | Paper |
 |:---:|:---:|:---:|:---:|:---:|
 |save_path|str|Path to save result|'./result'|-|
+|data_path|str|Name of dataset|'amazon'|-|
 |data_path|str|Path to dataset|'./Data/Office'|-|
 |batch_size|int|Train batch size|1024|-|
 |epoch|int|Train epoch|1000|maximum 1000|
