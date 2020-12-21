@@ -52,6 +52,8 @@ def load_data(path,dataset):
         for i in range(len(keys)):
             feature_dict[keys[i]]=feature[i]
 
+        return trn_positive_item, tst_positive_item, train_ng_pool, test_negative, num_user, num_item, feature_dict
+
     elif dataset=='amazon':
         train_df = pd.read_csv(os.path.join(path, 'train.csv'), index_col=None, usecols=None)
         test_df = pd.read_csv(os.path.join(path, 'test.csv'), index_col=None, usecols=None)
@@ -112,7 +114,8 @@ def load_data(path,dataset):
         feature = np.concatenate((t_features, v_features), axis=1)
         train_df = pd.DataFrame(train_df[["userID", "itemID"]])
 
-    return trn_positive_item, tst_positive_item, train_ng_pool, test_negative, num_user, num_item, feature_dict
+        return train_df, test_df, train_ng_pool, test_negative, num_user, num_item, feature
+
 
 
 class CustomDataset_movielens(Dataset):
