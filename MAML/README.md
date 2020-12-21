@@ -20,7 +20,7 @@ Data should be prepared as follows
 - text_feature_vec.pickle (Text features of movie's title+plot extracted from pretrained network)
 
 Movielens Dataset can be downloaded here<br>
-[Office dataset](https://drive.google.com/drive/folders/15T7s2DDFt1HLlwRVw4ytViKE2rAAXgsj)
+[Movielens dataset](https://drive.google.com/drive/folders/15T7s2DDFt1HLlwRVw4ytViKE2rAAXgsj)
 
 
 ## Usage
