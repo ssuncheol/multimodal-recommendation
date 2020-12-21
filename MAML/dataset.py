@@ -195,7 +195,10 @@ class CustomDataset_movielens(Dataset):
 
         else:
             user, item, label = self.dataset[index]
-            feature = self.feature[item]
+            feature=[]
+            for i in range(len(item)):
+                feature.append(self.feature[item[i]])
+            feature=np.array(feature)
             return user, item, feature, label
 
 
