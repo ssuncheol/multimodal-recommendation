@@ -8,6 +8,11 @@ Data should be prepared as follows
 - image_feature.npy (Image features of items extracted from pretrained network)
 - doc2vecFile (Parameters of model pretrained with text data of items)
 
+Amazon Review(Office) Dataset can be downloaded here
+[Office dataset](https://drive.google.com/drive/folders/19pfDw8fpIfcI4B2oncygxo9OJKo9apG2?usp=sharing)
+
+
+
 ## Usage
 ```
 # Train & Test Top 10 Recommendation
