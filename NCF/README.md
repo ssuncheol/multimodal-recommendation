@@ -6,8 +6,10 @@ Pytorch implementation of [Neural Collaborative Filtering](https://arxiv.org/abs
 
 ## Data preparation 
 
-#### Movielens dataset
+### Movielens dataset
+
 Data should be prepared as follows
+
 - movie_3953.ftr (Rating data)
 - movies.csv (Information of movie : genre, director)
 - image_feature_vec.pickle (Image features of movie posters extracted from pretrained network(ResNet18))
@@ -20,6 +22,12 @@ Movielens Dataset can be downloaded here<br>
 
 ## Model
 
+<img width="728" alt="KakaoTalk_20201222_200737563" src="https://user-images.githubusercontent.com/52492949/102882301-878c5600-4491-11eb-9c7d-9557d2f49f9c.png">
+
+- 
+- 
+- 
+- 
 
 ---
 
@@ -48,6 +56,7 @@ python3 main.py --optim='adam' --lr=0.001 --epochs=20 --batch_size=1024 --latent
 - [x] **NDCG@10**
 - [x] **HR@10**
 
+---
 
 ## Result
 
