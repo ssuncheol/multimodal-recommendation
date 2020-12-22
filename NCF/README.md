@@ -29,7 +29,8 @@ Movielens Dataset can be downloaded here<br>
 - Text → [300 dim vector]
 - Other Information : 
 
-    Genre → [23 dim one-hot-vector] 
+    Genre → [23 dim one-hot-vector]
+    
     Director → [1918 dim one-hot-vector]
 
 ---
