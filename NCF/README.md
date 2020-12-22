@@ -42,5 +42,5 @@ python3 main.py --optim='adam' --lr=0.001 --epochs=20 --batch_size=1024 --latent
 |l2|float|L2 Regularization|0|
 |gpu|str|Name of Using gpu|0|
 
-### Result
+## Result
 
