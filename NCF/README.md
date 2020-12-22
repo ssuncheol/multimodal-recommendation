@@ -4,7 +4,7 @@ Pytorch implementation of [Neural Collaborative Filtering](https://arxiv.org/abs
 
 ---
 
-### Data preparation 
+## Data preparation 
 
 #### Movielens dataset
 Data should be prepared as follows
@@ -20,7 +20,7 @@ Movielens Dataset can be downloaded here<br>
 
 ---
 
-### Usage 
+## Usage 
 
 ```sh
 python3 main.py --optim='adam' --lr=0.001 --epochs=20 --batch_size=1024 --latent_dim_mf=8 --num_layers=1 --num_neg=4 --gpu=0
@@ -28,7 +28,7 @@ python3 main.py --optim='adam' --lr=0.001 --epochs=20 --batch_size=1024 --latent
 
 ---
 
-### Arguments 
+## Arguments 
 
 | Argument | Type | Description | Default |
 |:---:|:---:|:---:|:---:|
