@@ -131,7 +131,6 @@ def main():
     model = NeuralCF(num_users= 6041,num_items = 3953, num_director=1918,num_genre=23,image=512,text=300,
                      embedding_size = args.latent_dim_mf,
                      num_layers = args.num_layers)
-    
     #model = nn.DataParallel(model)
     model = model.cuda()
     
