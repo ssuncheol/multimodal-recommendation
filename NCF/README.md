@@ -22,12 +22,12 @@ Movielens Dataset can be downloaded here<br>
 
 ## Model
 
-<img width="728" alt="KakaoTalk_20201222_200737563" src="https://user-images.githubusercontent.com/52492949/102882301-878c5600-4491-11eb-9c7d-9557d2f49f9c.png">
+![image](https://user-images.githubusercontent.com/69955858/102883105-cb338f80-4492-11eb-8391-7c9d7da6f32a.png)
 
-- 
-- 
-- 
-- 
+- Genre → [23 dim one-hot-vector] 
+- Director → [1918 dim one-hot-vector]
+- Image -> [512 dim vector]
+- Text -> [300 dim vector]
 
 ---
 
