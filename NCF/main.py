@@ -16,6 +16,7 @@ import warnings
 from sklearn.preprocessing import LabelEncoder 
 warnings.filterwarnings("ignore")
 
+
 def main():
     wandb.init(project="Multimodal")
     parser = argparse.ArgumentParser()
