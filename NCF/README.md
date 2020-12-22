@@ -44,7 +44,7 @@ Movielens Dataset can be downloaded here<br>
 python3 main.py --optim='adam' --lr=0.001 --epochs=20 --batch_size=1024 --latent_dim_mf=8 --num_layers=1 --num_neg=4 --gpu=0
 ```
 
-## Preformance Metrics
+## Performance Metrics
 - [x] **NDCG@10**
 - [x] **HR@10**
 
