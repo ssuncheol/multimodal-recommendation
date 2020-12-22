@@ -10,7 +10,7 @@ Pytorch implementation of [Neural Collaborative Filtering](https://arxiv.org/abs
 Data should be prepared as follows
 - movie_3953.ftr (Rating data)
 - movies.csv (Information of movie : genre, director)
-- image_feature_vec.pickle (Image features of movie posters extracted from pretrained network(ResNet))
+- image_feature_vec.pickle (Image features of movie posters extracted from pretrained network(ResNet18))
 - text_feature_vec.pickle (Text features of movie's title + plot extracted from pretrained network(Doc2Vec model))
 
 
