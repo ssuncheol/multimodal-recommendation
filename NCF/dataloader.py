@@ -48,7 +48,7 @@ class Make_Dataset(object):
         print(min(user), max(user), user.shape)
         return user, item, rating
 
-     
+    
     def _evaluate_data(self, ratings):
         #make evaluate data
         test_user = np.array(ratings["userid"])
@@ -59,8 +59,6 @@ class Make_Dataset(object):
         print(min(test_negative_item), max(test_negative_item), test_negative_item.shape)
         return [torch.LongTensor(test_user), torch.LongTensor(test_item), torch.LongTensor(test_negative_user),
                 torch.LongTensor(test_negative_item)]
-    
-    
     
 class SampleGenerator(object):
     def __init__(self, user, item, rating, ratings, positive_len,num_neg):

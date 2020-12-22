@@ -39,21 +39,15 @@ class Engine(object):
             
                 
             director_tp = torch.LongTensor(director_tp)
-            director_tp = director_tp.cuda()
             director_tn = torch.LongTensor(director_tn)
-            director_tn = director_tn.cuda()
             genre_tp = torch.LongTensor(genre_tp)
-            genre_tp = genre_tp.cuda()
             genre_tn = torch.LongTensor(genre_tn)
-            genre_tn = genre_tn.cuda()
-            image_tn = torch.FloatTensor(image_tn)
-            image_tn = image_tn.cuda()
             image_tp = torch.FloatTensor(image_tp)
-            image_tp = image_tp.cuda()
-            text_tn = torch.FloatTensor(text_tn)
-            text_tn = text_tn.cuda()
+            image_tn = torch.FloatTensor(image_tn)
             text_tp = torch.FloatTensor(text_tp)
-            text_tp = text_tp.cuda()
+            text_tn = torch.FloatTensor(text_tn)
+            
+            director_tp , director_tn ,genre_tp,genre_tn,image_tn,image_tp,text_tn,text_tp = director_tp.cuda(),director_tn.cuda(),genre_tp.cuda(),genre_tn.cuda(),image_tn.cuda(),image_tp.cuda(),text_tn.cuda(),text_tp.cuda()
                 
             test_scores = model(test_users, test_items,director_tp,genre_tp,image_tp,text_tp)
             negative_scores = model(negative_users, negative_items,director_tn,genre_tn,image_tn,text_tn)

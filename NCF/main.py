@@ -16,7 +16,6 @@ import warnings
 from sklearn.preprocessing import LabelEncoder 
 warnings.filterwarnings("ignore")
 
-
 def main():
     wandb.init(project="Multimodal")
     parser = argparse.ArgumentParser()
@@ -71,7 +70,7 @@ def main():
     
     
     subdata = data2.iloc[:, [0, 1, 7, 8]]
-    subdata.columns = ['ID', 'REIndex', 'Genre', 'Director']
+    subdata.columns = ['ID', 'index', 'Genre', 'Director']
 
     Genre = subdata['Genre']
     
@@ -130,13 +129,11 @@ def main():
     #NCF model
     model = NeuralCF(num_users= 6041,num_items = 3953, num_director=1918,num_genre=23,image=512,text=300,
                      embedding_size = args.latent_dim_mf,
-                     num_layers = args.num_layers)
-    #model = nn.DataParallel(model)
-    model = model.cuda()
+                     num_layers = args.num_layers).cuda()
     
     print(model)
     optim = optimizer(optim=args.optim, lr=args.lr, model=model, weight_decay=args.l2)
-    criterion = nn.BCEWithLogitsLoss()
+    criterion = nn.BCEWithLogitsLoss().cuda()
     wandb.watch(model)
 
 
@@ -147,7 +144,7 @@ def main():
         print('-' * 80)
         t1 = time.time()
         model.train()
-        total_loss = 0
+        
         sample = SampleGenerator(user = user, item = item, 
                                  rating = rating, ratings = data, 
                                  positive_len = MD.positive_len, num_neg = args.num_neg)
@@ -167,27 +164,22 @@ def main():
                 text.append(text_feature[i.item()])      
                    
             ratings = ratings.float()
-            users, items, ratings = users.cuda(), items.cuda(), ratings.cuda()
+            director = torch.LongTensor(director)
+            genre = torch.LongTensor(genre)
+            image= torch.FloatTensor(image)
+            text= torch.FloatTensor(text)
+            
+            users, items, ratings, director, genre, image, text = users.cuda(), items.cuda(), ratings.cuda() , director.cuda() , genre.cuda(), image.cuda(), text.cuda()
             
             optim.zero_grad() 
-            director = torch.LongTensor(director)
-            director = director.cuda()
-            genre = torch.LongTensor(genre)
-            genre = genre.cuda()
-            image= torch.FloatTensor(image)
-            image = image.cuda()
-            text= torch.FloatTensor(text)
-            text = text.cuda()
             
             output = model(users, items, director,genre,image,text)
-            
             
             loss = criterion(output, ratings)
             loss.backward()
             optim.step()
             loss = loss.item()
             wandb.log({'Batch Loss': loss})
-            total_loss += loss
 
         t2 = time.time()
         print("train : ", t2 - t1) 
