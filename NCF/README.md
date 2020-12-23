@@ -29,9 +29,8 @@ Movielens Dataset can be downloaded here<br>
 - Text → [300 dim vector]
 - Other Information : 
 
-    Genre → [23 dim one-hot-vector]
-    
-    Director → [1918 dim one-hot-vector]
+  - Genre → [23 dim one-hot-vector]
+  - Director → [1918 dim one-hot-vector]
 
 ---
 
@@ -53,15 +52,16 @@ Movielens Dataset can be downloaded here<br>
 
 ## Installation 
 
-Clone the repo 
+### Clone the repo 
 
 ```sh
 git clone https://github.com/dltkddn0525/recommendation.git
 ```
 
-Prerequisites 
+### Prerequisites 
 
 - python 3.8.3
+
   - pytorch 1.60
   - sklearn 0.23.2
   - numpy 1.18.5 
