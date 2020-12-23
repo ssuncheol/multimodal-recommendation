@@ -50,6 +50,23 @@ Movielens Dataset can be downloaded here<br>
 |l2|float|L2 Regularization|0|
 |gpu|str|Name of Using gpu|0|
 
+
+## Installation 
+
+Clone the repo 
+
+```sh
+git clone https://github.com/dltkddn0525/recommendation.git
+```
+
+Prerequisites 
+
+- python 3.8.3
+  - pytorch 1.60
+  - sklearn 0.23.2
+  - numpy 1.18.5 
+  - pandas 1.1.2
+
 ## Usage 
 
 ```sh
