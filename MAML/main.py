@@ -6,7 +6,7 @@ import os
 from torch.utils.data import DataLoader
 import numpy as np
 
-from utils import Logger, AverageMeter
+from utils import Logger, AverageMeter, str2bool
 from model import MAML
 from loss import Embedding_loss, Feature_loss, Covariance_loss
 import dataset_amazon as D_a
@@ -18,7 +18,7 @@ parser.add_argument('--save_path', default='./result', type=str,
                     help='savepath')
 parser.add_argument('--batch_size', default=1024, type=int,
                     help='batch size')
-parser.add_argument('--epoch', default=1, type=int,
+parser.add_argument('--epoch', default=1000, type=int,
                     help='train epoch')
 parser.add_argument('--data_path', default='./Data/Office', type=str,
                     help='Path to dataset')
@@ -42,6 +42,8 @@ parser.add_argument('--num_neg', default=4, type=int,
                     help='Number of negative samples for training')
 parser.add_argument('--load_path', default=None, type=str,
                     help='Path to saved model')
+parser.add_argument('--use_feature', default=True, type=str2bool,
+                    help='Whether to use auxiliary information of items')
 
 args = parser.parse_args()
 
@@ -61,20 +63,18 @@ def main():
     dataset=args.dataset
     if dataset=='amazon':
         train_df, test_df, train_ng_pool, test_negative, num_user, num_item, feature = D_a.load_data(path)
-        train_dataset = D_a.CustomDataset_amazon(train_df, feature, negative=train_ng_pool, num_neg=args.num_neg, istrain=True)
-        test_dataset = D_a.CustomDataset_amazon(test_df, feature, negative=test_negative, num_neg=None, istrain=False)
+        train_dataset = D_a.CustomDataset_amazon(train_df, feature, negative=train_ng_pool, num_neg=args.num_neg, istrain=True, use_feature=args.use_feature)
+        test_dataset = D_a.CustomDataset_amazon(test_df, feature, negative=test_negative, num_neg=None, istrain=False, use_feature=args.use_feature)
     elif dataset=='movielens':
         train_df, test_df, train_ng_pool, test_negative, num_user, num_item, feature = D_m.load_data(path)
         train_dataset = D_m.CustomDataset_movielens(train_df, feature, negative=train_ng_pool, num_neg=args.num_neg, istrain=True)
         test_dataset = D_m.CustomDataset_movielens(test_df, feature, negative=test_negative, num_neg=None, istrain=False)
-
-    # test_dataset = D.CustomDataset(train_df, feature, negative=train_ng_pool, num_neg = None, istrain=False)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4,
                               collate_fn=my_collate_trn)
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4, collate_fn=my_collate_tst)
 
     # Model
-    model = MAML(num_user, num_item, args.embed_dim, args.dropout_rate,dataset).cuda()
+    model = MAML(num_user, num_item, args.embed_dim, args.dropout_rate,dataset, args.use_feature).cuda()
     print(model)
     if args.load_path is not None:
         checkpoint = torch.load(args.load_path)
@@ -82,7 +82,15 @@ def main():
         print("Pretrained Model Loaded")
 
     # Optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    if args.use_feature:
+        optimizer = torch.optim.Adam([{'params': model.embedding_user.parameters()},
+                                        {'params': model.embedding_item.parameters()},
+                                        {'params': model.feature_fusion.parameters()},
+                                        {'params': model.attention.parameters(), 'weight_decay':100.0}], lr=args.lr)
+    else:
+        optimizer = torch.optim.Adam([{'params': model.embedding_user.parameters()},
+                                        {'params': model.embedding_item.parameters()},
+                                        {'params': model.attention.parameters(), 'weight_decay':100.0}], lr=args.lr)
 
     # Loss
     embedding_loss = Embedding_loss(margin=args.margin, num_item=num_item).cuda()
@@ -97,7 +105,8 @@ def main():
     for epoch in range(args.epoch):
         train_loader.dataset.train_ng_sampling()
         train(model, embedding_loss, feature_loss, covariance_loss, optimizer, train_loader, train_logger, epoch)
-        if (epoch + 1) % 100 == 0 or epoch == 0:
+        # if (epoch + 1) % 100 == 0 or epoch == 0:
+        if epoch == args.epoch-1:
             test(model, test_loader, test_logger, epoch)
             # Save Model every 100 epoch
             torch.save(model.state_dict(), f"{save_path}/model_{epoch + 1}.pth")
@@ -121,17 +130,14 @@ def train(model, embedding_loss, feature_loss, covariance_loss, optimizer, train
         _, q_k, q_k_feature, dist_n = model(user, item_n, feature_n)
         # Loss
         loss_e = embedding_loss(dist_p, dist_n)
-        loss_f = feature_loss(q_i, q_i_feature, q_k, q_k_feature)
-        loss_c = covariance_loss(p_u, q_i, q_k)
-
-        # L2 reg for attention layer
-        linear1 = model.attention[1].parameters()
-        linear2 = model.attention[5].parameters()
-        reg1 = l2_regularization(linear1, 100.0)
-        reg2 = l2_regularization(linear2, 100.0)
-
-        # loss = loss_e + args.feat_weight * loss_f + args.cov_weight * loss_c
-        loss = loss_e + (args.feat_weight * loss_f) + (args.cov_weight * loss_c) + reg1 + reg2
+        if args.use_feature:
+            loss_f = feature_loss(q_i, q_i_feature, q_k, q_k_feature)
+            loss_c = covariance_loss(p_u, q_i, q_k)
+            loss = loss_e + (args.feat_weight * loss_f) + (args.cov_weight * loss_c)
+        else:
+            loss_f = torch.zeros(1)
+            loss_c = torch.zeros(1)
+            loss = loss_e
 
         optimizer.zero_grad()
         loss.backward()
@@ -178,12 +184,6 @@ def test(model, test_loader, test_logger, epoch):
     print(
         f"Epoch : [{epoch + 1}/{args.epoch}] Hit Ratio : {hr.avg:.4f} nDCG : {ndcg.avg:.4f} Test Time : {time.time() - end:.4f}")
     test_logger.write([epoch, hr.avg, ndcg.avg])
-
-
-def l2_regularization(params, _lambda):
-    l2_reg = torch.cat([x.view(-1) for x in params])
-    l2_reg = _lambda * torch.norm(l2_reg, 2)
-    return l2_reg
 
 
 def my_collate_trn(batch):

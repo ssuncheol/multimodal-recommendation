@@ -82,7 +82,6 @@ class CustomDataset_movielens(Dataset):
         self.train_dataset = None
 
         if istrain:
-            # Something
             self.train_ng_sampling()
         else:
             self.make_testset()

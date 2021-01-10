@@ -86,7 +86,7 @@ class CustomDataset_amazon(Dataset):
     label = [N] 1 for positive, 0 for negative
     '''
 
-    def __init__(self, dataset, feature, negative, num_neg=4, istrain=False):
+    def __init__(self, dataset, feature, negative, num_neg=4, istrain=False, use_feature = True):
         super(CustomDataset_amazon, self).__init__()
         self.dataset = dataset
         self.feature = feature
@@ -94,9 +94,9 @@ class CustomDataset_amazon(Dataset):
         self.istrain = istrain
         self.num_neg = num_neg
         self.train_dataset = None
+        self.use_feature = use_feature
 
         if istrain:
-            # Something
             self.train_ng_sampling()
         else:
             self.make_testset()
@@ -143,13 +143,19 @@ class CustomDataset_amazon(Dataset):
     def __getitem__(self, index):
         if self.istrain:
             user, item_p, item_n = self.train_dataset[index]
-            feature_p = self.feature[item_p]
-            feature_n = self.feature[item_n]
-            return user, item_p, item_n, feature_p, feature_n
+            if self.use_feature:
+                feature_p = self.feature[item_p]
+                feature_n = self.feature[item_n]
+                return user, item_p, item_n, feature_p, feature_n
+            else:
+                return user, item_p, item_n, 0.0, 0.0
         else:
             user, item, label = self.dataset[index]
-            feature = self.feature[item]
-            return user, item, feature, label
+            if self.use_feature:
+                feature = self.feature[item]
+                return user, item, feature, label
+            else:
+                return user, item, 0.0, label
 
 
 def inspect(df, num_inter):
