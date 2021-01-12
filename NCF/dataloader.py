@@ -34,6 +34,8 @@ class Make_Dataset(object):
 
         self.ratings = ratings
         self.positive_len = ratings["train_positive"].map(len)
+        self.negative_len = ratings["test_negative"].map(len)
+        self.test_len = ratings["test_positive"].map(len)
         self.trainset = self._trainset(ratings)
         self.evaluate_data = self._evaluate_data(ratings)
         
@@ -42,24 +44,21 @@ class Make_Dataset(object):
         #make train data
         user = np.array(np.repeat(ratings["userid"], self.positive_len))
         item = np.array([item for items in ratings['train_positive'] for item in items])
-        print(item)
         rating = np.repeat(1, self.positive_len.sum()).reshape(-1)
-        print(min(item), max(item), item.shape)
-        print(min(user), max(user), user.shape)
         return user, item, rating
 
-    
+     
     def _evaluate_data(self, ratings):
         #make evaluate data
-        test_user = np.array(ratings["userid"])
-        test_item = np.array(ratings["test_positive"])
-        
-        test_negative_user = np.array(np.repeat(ratings["userid"], 99))
-        test_negative_item = np.array(list(ratings["test_negative"])).reshape(-1)
-        print(min(test_negative_item), max(test_negative_item), test_negative_item.shape)
+        test_user = np.array(np.repeat(ratings["userid"], self.test_len))
+        test_item = np.array([item for items in ratings['test_positive'] for item in items])
+        test_negative_user = np.array(np.repeat(ratings["userid"], self.negative_len))
+        test_negative_item = np.array([item for items in ratings['test_negative'] for item in items])
         return [torch.LongTensor(test_user), torch.LongTensor(test_item), torch.LongTensor(test_negative_user),
                 torch.LongTensor(test_negative_item)]
     
+    
+     
 class SampleGenerator(object):
     def __init__(self, user, item, rating, ratings, positive_len,num_neg):
         self.user = user # 전처리한 데이터
@@ -95,5 +94,3 @@ class SampleGenerator(object):
                                         target_tensor=torch.FloatTensor(rating))
 
         return DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers = 4)
-    
-    
