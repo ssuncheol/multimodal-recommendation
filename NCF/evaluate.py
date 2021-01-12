@@ -5,17 +5,15 @@ class Engine(object):
     def __init__(self):
         self._metron = MetronAtK(top_k=10)
         
-    def evaluate(self, model,evaluate_data,dic_director,one_hot_vector,image,text, epoch_id):
+    def evaluate(self, model,evaluate_data, epoch_id,**kwargs):
         #Evaluate model
         model.eval()
-        director_tp = []
-        director_tn = []
-        genre_tp=[]
-        genre_tn=[]
-        image_tp=[]
-        image_tn=[]
-        text_tp=[]
-        text_tn=[]
+        if kwargs["feature"] == True:
+            image_tp=[]
+            image_tn=[]
+            text_tp=[]
+            text_tn=[]
+
         with torch.no_grad():
             test_users, test_items = evaluate_data[0], evaluate_data[1]
             negative_users, negative_items = evaluate_data[2], evaluate_data[3]
@@ -24,34 +22,63 @@ class Engine(object):
             test_items = test_items.cuda()
             negative_users = negative_users.cuda()
             negative_items = negative_items.cuda()
-            
-            for i in test_items :
-                director_tp.append(dic_director[i.item()])
-                genre_tp.append(one_hot_vector[i.item()])
-                image_tp.append(image[i.item()])   
-                text_tp.append(text[i.item()]) 
+
+            # Feature O
+            if kwargs["feature"] == True:
+                if kwargs["data"] == "amazon":
+                    user2review = kwargs["text"]
+                    item2image = kwargs["image"]
+                    image_feature = kwargs["image_feature"]
+                    text_feature = kwargs["text_feature"]
+                    print("Test User Start")
+                    for u in test_users:
+                        text_vector = user2review[u.item()]
+                        text_tp.append(text_feature.infer_vector([text_vector]))   
+                    print("Negative User Start")
+                    for nu in negative_users:
+                        text_vector = user2review[nu.item()]
+                        text_tn.append(text_feature.infer_vector([text_vector]))               
+                    print("Test Item Start")
+                    for i in test_items:
+                        image_vector = item2image[i.item()]
+                        image_tp.append(image_feature[image_vector]) 
+                    print("Test Negative Start")
+                    for ni in negative_items :
+                        image_vector = item2image[ni.item()]
+                        image_tn.append(image_feature[image_vector]) # CPU error
                 
-            for j in negative_items :
-                director_tn.append(dic_director[j.item()])    
-                genre_tn.append(one_hot_vector[j.item()])    
-                image_tn.append(image[j.item()])   
-                text_tn.append(text[j.item()])  
+                # Movie
+                else: 
+                    image_feature = kwargs["image_feature"]
+                    text_feature = kwargs["text_feature"]
+                    for i in test_items :
+                        image_tp.append(image_feature[i.item()])   
+                        text_tp.append(text_feature[i.item()]) 
+                
+                    for j in negative_items :  
+                        image_tn.append(image_feature[j.item()])   
+                        text_tn.append(text_feature[j.item()])  
             
                 
-            director_tp = torch.LongTensor(director_tp)
-            director_tn = torch.LongTensor(director_tn)
-            genre_tp = torch.LongTensor(genre_tp)
-            genre_tn = torch.LongTensor(genre_tn)
-            image_tp = torch.FloatTensor(image_tp)
-            image_tn = torch.FloatTensor(image_tn)
-            text_tp = torch.FloatTensor(text_tp)
-            text_tn = torch.FloatTensor(text_tn)
-            
-            director_tp , director_tn ,genre_tp,genre_tn,image_tn,image_tp,text_tn,text_tp = director_tp.cuda(),director_tn.cuda(),genre_tp.cuda(),genre_tn.cuda(),image_tn.cuda(),image_tp.cuda(),text_tn.cuda(),text_tp.cuda()
-                
-            test_scores = model(test_users, test_items,director_tp,genre_tp,image_tp,text_tp)
-            negative_scores = model(negative_users, negative_items,director_tn,genre_tn,image_tn,text_tn)
-            
+ 
+
+
+                image_tn = torch.FloatTensor(image_tn)
+                image_tn = image_tn.cuda()
+                image_tp = torch.FloatTensor(image_tp)
+                image_tp = image_tp.cuda()
+                text_tn = torch.FloatTensor(text_tn)
+                text_tn = text_tn.cuda()
+                text_tp = torch.FloatTensor(text_tp)
+                text_tp = text_tp.cuda()
+
+                test_scores = model(test_users, test_items,image_tp,text_tp)
+                negative_scores = model(negative_users, negative_items,image_tn,text_tn)
+
+            # Feature X
+            else:
+                test_scores = model(test_users, test_items)
+                negative_scores = model(negative_users, negative_items)
             #to cpu
             test_users = test_users.cpu()
             test_items = test_items.cpu()
