@@ -10,12 +10,14 @@ class NeuralCF(nn.Module):
         self.item_embedding_gmf = nn.Embedding(num_items,embedding_size)        
         self.user_embedding_mlp = nn.Embedding(num_users,embedding_size)
         self.item_embedding_mlp = nn.Embedding(num_items,embedding_size)
+        
 
         if ('image' in kwargs.keys()) & ('text' in kwargs.keys()):
             print("IMAGE FEATURE")
             print("TEXT FEATURE")
             self.image_embedding = nn.Linear(kwargs["image"],embedding_size) # Image Embedding
             self.text_embedding = nn.Linear(kwargs["text"],embedding_size) # Text Embedding
+            self.bn = nn.BatchNorm1d(4*embedding_size)
  
 
         else:
@@ -64,9 +66,12 @@ class NeuralCF(nn.Module):
             image=F.relu(self.image_embedding(kwargs["image"]))
             text=F.relu(self.text_embedding(kwargs["text"]))
             item_mlp = torch.cat([item_mlp,image,text], -1)
+            
         
         gmf=torch.mul(user_gmf,item_gmf) 
         mlp=torch.cat([user_mlp,item_mlp],-1)
+        if ('image' in kwargs.keys()) & ('text' in kwargs.keys()):
+            mlp = self.bn(mlp)
         mlp = self.MLP_layers(mlp)
         x=torch.cat((gmf,mlp),1)
         x=self.predict_layer(x)
