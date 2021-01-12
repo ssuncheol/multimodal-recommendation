@@ -1,24 +1,55 @@
 import os
 import pandas as pd
 import numpy as np
+import wandb
+from gensim.models.doc2vec import Doc2Vec
 import torch
 import torch.nn as nn
 import argparse
 import time
 import random
+from sklearn.preprocessing import LabelEncoder 
+
 from dataloader import Make_Dataset, SampleGenerator
 from utils import optimizer
 from model import NeuralCF
 from evaluate import Engine
 from metrics import MetronAtK
-import wandb
+
 import warnings
-from sklearn.preprocessing import LabelEncoder 
 warnings.filterwarnings("ignore")
 
+def amazon(train, test):
+    train = train[["userID","itemID"]]
+    test = test[["userID","itemID"]]
+    train_item = set(train["itemID"])
+    test_item = set(test["itemID"])
+    items = train_item | test_item
+    print("User : {} ~ {}".format(min(train["userID"]), max(train["userID"])))
+    print("Item : {} ~ {}".format(min(items), max(items)))
+    train = train.groupby(["userID"])["itemID"].apply(list).to_frame(name = "train_positive")
+    test = test.groupby(["userID"])["itemID"].apply(list).to_frame(name = "test_positive")
+    data = pd.merge(train,test, on = "userID")
+    data["test_negative"] = data.apply(lambda x : list(items - set(x["train_positive"]) - set(x["test_positive"])), axis = 1)
+    data["train_negative"] = data.apply(lambda x : list(items - set(x["train_positive"]) - set(x["test_positive"])), axis = 1)
+    data["userid"] = data.index
+    image_feature = np.load("/daintlab/data/amazon_office/image_feature.npy", allow_pickle=True)
+    image_feature = image_feature.item()
+    text_feature = Doc2Vec.load("/daintlab/data/amazon_office/doc2vecFile")
+    return data, image_feature, text_feature  
+
+
 def main():
-    wandb.init(project="Multimodal")
+    wandb.init(project="NCF-side")
     parser = argparse.ArgumentParser()
+    parser.add_argument('--data',
+                type=str,
+                default="amazon",
+                help='dataset')
+    parser.add_argument('--feature',
+                type=bool,
+                default=False,
+                help='feature')
     parser.add_argument('--optim',
                 type=str,
                 default='adam',
@@ -29,7 +60,7 @@ def main():
                 help='learning rate')
     parser.add_argument('--epochs',
                 type=int,
-                default=20,
+                default=50,
                 help='learning rate')
     parser.add_argument('--batch_size',
                 type=int,
@@ -60,91 +91,70 @@ def main():
     
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
-    data = pd.read_feather("/daintlab/data/movielens/movie_3953.ftr")
-    data2 = pd.read_csv("/daintlab/data/movielens/movies.csv", header=None)
-    
-    image_feature = pd.read_pickle('/daintlab/data/movielens/image_feature_vec.pickle')
-    text_feature = pd.read_pickle('/daintlab/data/movielens/text_feature_vec.pickle')
-    
-    
-    
-    
-    subdata = data2.iloc[:, [0, 1, 7, 8]]
-    subdata.columns = ['ID', 'index', 'Genre', 'Director']
+    if args.data == "amazon":
+        train = pd.read_csv("/daintlab/data/amazon_office/train.csv")
+        test = pd.read_csv("/daintlab/data/amazon_office/test.csv")
+        total = pd.concat([train,test])
+        num_user = 4874
+        num_item = 2406
+        item2image = dict(zip(total["itemID"], total["asin"]))
+        user2review = dict(zip(total["userID"], total["reviewerID"]))
+        data, image_feature, text_feature = amazon(train,test)
+        image_shape = 4096
+        text_shape = 512
 
-    Genre = subdata['Genre']
-    
-    G = []
-    for i in list(Genre):
-        try:
-            G.extend(i.split(', '))
-        except:
-            print(i)
-    df = pd.DataFrame(G)
-    Genre = df[0].unique()
-    
-    
-    
-    genre_dic = {}
-    one_hot_vector = {}
-    for i, j in zip(list(subdata['Genre']), list(subdata['ID'])):
-        for genre_name in Genre:
-            genre_dic[genre_name] = 0
-        
-        try:
-            genre_list_of_item = i.split(', ')
-            for k in genre_list_of_item:
-                genre_dic[k] += 1
-            v = list(genre_dic.values())
-            one_hot_vector[j] = v
-            
-        except:
-            print(j)
-            one_hot_vector[j] = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
-            
-    #print(one_hot_vector)
+    elif args.data == "movie":
+        data = pd.read_feather("/daintlab/data/movielens/movie_3953.ftr")
+        image_feature = pd.read_pickle('/daintlab/data/movielens/image_feature_vec.pickle')
+        text_feature = pd.read_pickle('/daintlab/data/movielens/text_feature_vec.pickle')
+        data["test_positive"] = data["test_positive"].apply(lambda x : [x])
+        num_user = 6041
+        num_item = 3953
+        image_shape = 512
+        text_shape = 300
 
-    data1 = data2.iloc[:, [0, 1, 7, 8]]
-    data1.columns = ['ID', 'index', 'Genre', 'Director']
-    
-    labelencoder =LabelEncoder()
-    data1['Director_num'] = labelencoder.fit_transform(data1['Director'].astype(str))
-    
-    data1['Director_num'] = data1['Director_num'].apply(lambda x:x+1)
-    
-    print(np.min(data1['Director_num']))
-    print(np.max(data1['Director_num']))
-    
-    dic_director = {}
-    for i in range(len(data1['ID'])):
-        dic_director[data1['ID'][i]] = data1['Director_num'][i]
-    
 
-      
+    
+    else:
+        print("데이터가 존재하지 않습니다.")
+        return 0
+    
     MD = Make_Dataset(ratings = data)
     user, item, rating = MD.trainset
     evaluate_data = MD.evaluate_data
 
 
     #NCF model
-    model = NeuralCF(num_users= 6041,num_items = 3953, num_director=1918,num_genre=23,image=512,text=300,
-                     embedding_size = args.latent_dim_mf,
-                     num_layers = args.num_layers).cuda()
+    # feature X
+    if args.feature == False:
+        print("FEATURE X")
+        model = NeuralCF(num_users=num_user,num_items=num_item,
+                        embedding_size=args.latent_dim_mf,
+                        num_layers=args.num_layers,data=args.data)
+    
+    # feature O
+    else:
+        print("FEATURE O")
+        model = NeuralCF(num_users=num_user,num_items=num_item,
+                        embedding_size=args.latent_dim_mf,
+                        num_layers=args.num_layers,data=args.data,image=image_shape,text=text_shape)
+    
+    model = nn.DataParallel(model)
+    model = model.cuda()
     
     print(model)
     optim = optimizer(optim=args.optim, lr=args.lr, model=model, weight_decay=args.l2)
-    criterion = nn.BCEWithLogitsLoss().cuda()
+    criterion = nn.BCEWithLogitsLoss()
     wandb.watch(model)
 
 
     N = []
-    patience = 0
     for epoch in range(args.epochs):
         print('Epoch {} starts !'.format(epoch+1))
         print('-' * 80)
         t1 = time.time()
         model.train()
-        
+        total_loss = 0
         sample = SampleGenerator(user = user, item = item, 
                                  rating = rating, ratings = data, 
                                  positive_len = MD.positive_len, num_neg = args.num_neg)
@@ -153,62 +163,63 @@ def main():
         print("Train Loader 생성 완료")
         for batch_id, batch in enumerate(train_loader):
             users, items, ratings = batch[0], batch[1], batch[2]
-            director = []
-            genre=[]
-            image = []
-            text = []
-            for i in items :
-                director.append(dic_director[i.item()])
-                genre.append(one_hot_vector[i.item()])
-                image.append(image_feature[i.item()]) 
-                text.append(text_feature[i.item()])      
-                   
             ratings = ratings.float()
-            director = torch.LongTensor(director)
-            genre = torch.LongTensor(genre)
-            image= torch.FloatTensor(image)
-            text= torch.FloatTensor(text)
-            
-            users, items, ratings, director, genre, image, text = users.cuda(), items.cuda(), ratings.cuda() , director.cuda() , genre.cuda(), image.cuda(), text.cuda()
-            
+            users, items, ratings = users.cuda(), items.cuda(), ratings.cuda()
             optim.zero_grad() 
             
-            output = model(users, items, director,genre,image,text)
+            if args.feature == True:
+                
+                image = []
+                text = []
+                if args.data == "amazon":
+                    for i in items :
+                        image_vector = item2image[i.item()]
+                        image.append(image_feature[image_vector])  
+                    for u in users :
+                        text_vector = user2review[u.item()]
+                        text.append(text_feature.infer_vector([text_vector]))
+                else:
+                    for i in items :
+                        image.append(image_feature[i.item()]) 
+                        text.append(text_feature[i.item()])                                  
+                image= torch.FloatTensor(image)
+                image = image.cuda()
+                text= torch.FloatTensor(text)
+                text = text.cuda()
             
+                output = model(users,items,image=image,text=text,data=args.data)
+            
+            
+            else:                           
+                output = model(users, items)
             loss = criterion(output, ratings)
             loss.backward()
             optim.step()
             loss = loss.item()
             wandb.log({'Batch Loss': loss})
+            total_loss += loss
 
         t2 = time.time()
         print("train : ", t2 - t1) 
  
         engine = Engine()
-        hit_ratio,ndcg = engine.evaluate(model,evaluate_data,dic_director,one_hot_vector,image_feature,text_feature,epoch_id=epoch)
+        if args.data == "amazon":
+            hit_ratio,ndcg = engine.evaluate(model,evaluate_data,epoch_id=epoch,
+                                            feature=args.feature,image=item2image,text=user2review,
+                                            image_feature=image_feature,text_feature=text_feature,
+                                           data=args.data)
+        else:
+            hit_ratio,ndcg = engine.evaluate(model,evaluate_data,
+                                             epoch_id=epoch,
+                                             image_feature=image_feature,
+                                             text_feature=text_feature,
+                                             feature=args.feature,
+                                             data=args.data)
         wandb.log({"epoch" : epoch,
                     "HR" : hit_ratio,
                     "NDCG" : ndcg})
         N.append(ndcg)
 
-        if N[-1] < max(N):
-            if patience == 5:
-                print("Patience = ")
-                print("ndcg = {:.4f}".format(max(N)))
-                break
-            else:
-                patience += 1
-                print("Patience = {} ndcg = {:.4f}".format(patience, max(N)))
-        else:
-            patience = 0
-            print("Patience = {}".format(patience))
-
-    
 if __name__ == '__main__':
-    file_name = "/daintlab/data/movielens/movie_3953.ftr"
-    if os.path.exists(file_name):
-        print("Data 존재")
-        main()
-    else:
-        print("데이터 없음")
+    main()
         
