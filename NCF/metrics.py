@@ -46,11 +46,12 @@ class MetronAtK(object):
         top_k = full[full['rank']<=top_k]
         test_in_top_k =top_k[top_k['test_item'] == top_k['item']]  # golden items hit in the top_K items
         return len(test_in_top_k) * 1.0 / full['user'].nunique()
-
+ 
     def cal_ndcg(self):
         full, top_k = self._subjects, self._top_k
         top_k = full[full['rank']<=top_k]
         test_in_top_k = top_k[top_k['test_item'] == top_k['item']]
+        
         
         test_in_top_k['ndcg'] = test_in_top_k['rank'].apply(lambda x: 1 / math.log2(1 + x))
         test_in_top_k["test_score"] = test_in_top_k["test_score"].apply(lambda x : 1/(1+np.exp(-x)))
