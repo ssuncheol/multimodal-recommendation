@@ -23,15 +23,6 @@ Amazon Review(Office) Dataset can be downloaded here<br>
   "reviewTime": "09 13, 2009"
 }</code></pre>
 where
-* reviewerID - ID of the reviewer, e.g. A2SUAM1J3GNN3B
-* asin - ID of the product, e.g. 0000013714
-* reviewerName - name of the reviewer
-* helpful - helpfulness rating of the review, e.g. 2/3
-* reviewText - text of the review
-* overall - rating of the product
-* summary - summary of the review
-* unixReviewTime - time of the review (unix time)
-* reviewTime - time of the review (raw)
 
 ### 2) Movielens-1M
 Movielens Dataset can be downloaded here<br>
@@ -42,10 +33,23 @@ Movielens Dataset can be downloaded here<br>
 - item_movielens.json (Movie meta data)
 - image_movielens.zip (Image of posters, 'movieid.jpg')
 
-### Sample user/item.json
+### Sample user_movielens.json :
 <pre>
 <code> {
-  1: {'userid': '1', 'sex': 'F', 'age': '1', 'occupation': '10', 'zip_code': '48067'}
-  2: {'userid': '2', 'sex': 'M', 'age': '56', 'occupation': '16', 'zip_code': '70072'}
+  '1': {'userid': '1', 'sex': 'F', 'age': '1', 'occupation': '10', 'zip_code': '48067'}
+  '2': {'userid': '2', 'sex': 'M', 'age': '56', 'occupation': '16', 'zip_code': '70072'}
+  ...
+  }</code></pre>
+
+### Sample item_movielens.json :
+<pre>
+<code> {
+  '1': {'movieid': '1', 'title': 'Toy Story', 'year': '1995', 'rated': 'G', 'released': '22-Nov-95', 
+        'runtime': '81 min', 'genre': 'Animation, Adventure, Comedy, Family, Fantasy', 'director': 'John Lasseter', 
+        'writer': 'John Lasseter (original story by), Pete Docter (original story by), Andrew Stanton (original story by), Joe Ranft (original story by), Joss Whedon (screenplay by), Andrew Stanton (screenplay by), Joel Cohen (screenplay by), Alec Sokolow (screenplay by)', 
+        'actors': 'Tom Hanks, Tim Allen, Don Rickles, Jim Varney', 'plot': 'A little boy named Andy loves to be in his room, playing with his toys, especially his doll named "Woody". But, what do the toys do when Andy is not with them, they come to life. Woody believes that he has life (as a toy) good. However, he must worry about Andy\'s family moving, and what Woody does not know is about Andy\'s birthday party. Woody does not realize that Andy\'s mother gave him an action figure known as Buzz Lightyear, who does not believe that he is a toy, and quickly becomes Andy\'s new favorite toy. Woody, who is now consumed with jealousy, tries to get rid of Buzz. Then, both Woody and Buzz are now lost. They must find a way to get back to Andy before he moves without them, but they will have to pass through a ruthless toy killer, Sid Phillips.', 
+        'language': 'English', 'country': 'USA', 'awards': 'Nominated for 3 Oscars. Another 27 wins & 20 nominations.', 'rate_tomatoes': '100%', 
+        'rate_metacritic': '95.0', 'rate_imdb': '8.3', 'imdbvote': '868,378', 'imdbid': 'tt0114709', 'type': 'movie', 'dvd': 'nan', 'boxoffice': 'nan', 
+        'production': 'Pixar Animation Studios, Walt Disney Pictures', 'website': 'nan', 'response': 'True', 'image_path': './image_movielens/poster/1.jpg'}
   ...
   }</code></pre>
