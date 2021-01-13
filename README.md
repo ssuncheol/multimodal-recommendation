@@ -22,7 +22,7 @@ Amazon Review(Office) Dataset can be downloaded here<br>
   "unixReviewTime": 1252800000,
   "reviewTime": "09 13, 2009"
 }</code></pre>
-where
+
 
 ### 2) Movielens-1M
 Movielens Dataset can be downloaded here<br>
@@ -33,7 +33,7 @@ Movielens Dataset can be downloaded here<br>
 - item_movielens.json (Movie meta data)
 - image_movielens.zip (Image of posters, 'movieid.jpg')
 
-### Sample user_movielens.json :
+#### Sample user_movielens.json :
 <pre>
 <code> {
   '1': {'userid': '1', 'sex': 'F', 'age': '1', 'occupation': '10', 'zip_code': '48067'}
@@ -41,7 +41,7 @@ Movielens Dataset can be downloaded here<br>
     ...
   }</code></pre>
 
-### Sample item_movielens.json :
+#### Sample item_movielens.json :
 <pre>
 <code> 
 {
