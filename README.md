@@ -32,3 +32,12 @@ where
 * summary - summary of the review
 * unixReviewTime - time of the review (unix time)
 * reviewTime - time of the review (raw)
+
+### 2) Movielens-1M
+Movielens Dataset can be downloaded here<br>
+[Movielens dataset(raw)](https://drive.google.com/drive/folders/1iRU83v1Ut8RwsH2RAlE2cYPy2iwzsEPg)
+
+- ratings.csv (Rating data, userid::itemid::rating::timestamp)
+- user_movielens.json (User meta data)
+- item_movielens.json (Movie meta data)
+- image_movielens.zip (Image of posters, 'movieid.jpg')
