@@ -43,8 +43,7 @@ Movielens Dataset can be downloaded here<br>
 
 #### Sample item_movielens.json :
 <pre>
-<code> 
-{
+<code>{
   '1': {'movieid': '1', 
         'title': 'Toy Story', 
         'year': '1995',
