@@ -41,3 +41,11 @@ Movielens Dataset can be downloaded here<br>
 - user_movielens.json (User meta data)
 - item_movielens.json (Movie meta data)
 - image_movielens.zip (Image of posters, 'movieid.jpg')
+
+### Sample user/item.json
+<pre>
+<code> {
+  1: {'userid': '1', 'sex': 'F', 'age': '1', 'occupation': '10', 'zip_code': '48067'}
+  2: {'userid': '2', 'sex': 'M', 'age': '56', 'occupation': '16', 'zip_code': '70072'}
+  ...
+  }</code></pre>
