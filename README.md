@@ -21,6 +21,7 @@ Amazon Review(Office) Dataset can be downloaded here<br>
   "unixReviewTime": 1252800000,
   "reviewTime": "09 13, 2009"
 }
+
 where
 * reviewerID - ID of the reviewer, e.g. A2SUAM1J3GNN3B
 * asin - ID of the product, e.g. 0000013714
