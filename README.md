@@ -10,7 +10,8 @@ Amazon Review(Office) Dataset can be downloaded here<br>
 - reviews_Office_Products_5.json.gz (Subset of the review data in which all users and item have at least 5 reviews)
 
 ### Sample review:
-> {
+<pre>
+<code> {
   "reviewerID": "A2SUAM1J3GNN3B",
   "asin": "0000013714",
   "reviewerName": "J. McDonald",
@@ -21,7 +22,8 @@ Amazon Review(Office) Dataset can be downloaded here<br>
   "unixReviewTime": 1252800000,
   "reviewTime": "09 13, 2009"
 }
-
+</code>
+</pre>
 where
 * reviewerID - ID of the reviewer, e.g. A2SUAM1J3GNN3B
 * asin - ID of the product, e.g. 0000013714
