@@ -9,7 +9,7 @@ Amazon Review(Office) Dataset can be downloaded here<br>
 - image_office.zip (Image of items)
 - user_item_office.json.gz (Subset of the review data in which all users and item have at least 5 reviews)
 
-### Sample review:
+#### Sample user_item_office.json:
 <pre>
 <code> {
   "reviewerID": "A2SUAM1J3GNN3B",
