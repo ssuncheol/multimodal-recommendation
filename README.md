@@ -5,9 +5,9 @@
 Amazon Review(Office) Dataset can be downloaded here<br>
 [Amazon Office dataset(raw)](https://drive.google.com/drive/u/0/folders/1NMvsUaaSW9nxtMRnGcQw-8eNY1pjvAJY)
 
-- ratings_Office_Products_5.csv (Rating data, userid::itemid::rating::timestamp)
-- office_image.zip (Image of items)
-- reviews_Office_Products_5.json.gz (Subset of the review data in which all users and item have at least 5 reviews)
+- ratings.csv (Rating data, userid::itemid::rating::timestamp)
+- image_office.zip (Image of items)
+- user-item_office.json.gz (Subset of the review data in which all users and item have at least 5 reviews)
 
 ### Sample review:
 <pre>
