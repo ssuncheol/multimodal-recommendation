@@ -37,7 +37,7 @@ For ```--use_feature False``` , Only embedding loss will be used and attention l
 The following results will be saved in ```<Your save path>```
 - train.log ( epoch, total loss, embedding loss, feature loss, covariance loss )
 - test.log ( epoch, hit ratio, nDCG )
-- model.pth (model saved every 100 epoch)
+- model.pth (model saved every n epoch)
 
 
 ## Arguments
@@ -58,6 +58,10 @@ The following results will be saved in ```<Your save path>```
 |num_neg|int|Number of negative samples for training|4|4|
 |load_path|str|Path to saved model. Used to load checkpoint|None|-|
 |use_feature|str2bool|Whether to use multimodal information|True|-|
+|eval_freq|int|evaluate every n epoch|50|-|
+|feature_type|str|Type of feature to use. ["all","img","txt"] |"all"|-|
+
+
 ## Result
 Batch size : 1024</br>
 Train Epoch : 1000</br>
