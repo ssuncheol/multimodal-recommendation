@@ -11,8 +11,7 @@ Amazon Review(Office) Dataset can be downloaded here<br>
 - image_office.zip (Image of items)
 
 #### Sample user_item_office.json:
-<pre>
-<code> {
+```
   "reviewerID": "A2SUAM1J3GNN3B",
   "asin": "0000013714",
   "reviewerName": "J. McDonald",
@@ -22,7 +21,7 @@ Amazon Review(Office) Dataset can be downloaded here<br>
   "summary": "Heavenly Highway Hymns",
   "unixReviewTime": 1252800000,
   "reviewTime": "09 13, 2009"
-}</code></pre>
+```
 
 #### Data split
 #### Usage
