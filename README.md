@@ -27,17 +27,15 @@ Amazon Review(Office) Dataset can be downloaded here<br>
 #### Data split
 #### Usage
 <pre>
-<code> {
- python data_split.py --data_path <Your data path/ratings.csv> --save_path <Your save path>
-}</code></pre>
+<code>python data_split.py --data_path <Your data path/ratings.csv> --save_path <Your save path></code></pre>
 The following results will be saved in <pre><code>{<Your save path>}</code></pre>
 <pre>
-<code> {
+<code>
  leave-one-out/train_positive.csv
               /test_positive.csv
               /train_negative.csv
               /test_negative.csv
-}</code></pre>
+</code></pre>
 ### 2) Movielens-1M
 Movielens Dataset can be downloaded here<br>
 [Movielens dataset(raw)](https://drive.google.com/drive/folders/1iRU83v1Ut8RwsH2RAlE2cYPy2iwzsEPg)
