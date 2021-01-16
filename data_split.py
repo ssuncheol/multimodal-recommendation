@@ -31,10 +31,10 @@ items_set=set(item_id['itemidx'])
 ratings['rate'][ratings['rate']>0]=1.0
 rating1=ratings.groupby('userid')['itemid'].apply(list).reset_index()
 rating2=ratings.groupby('userid')['timestamp'].apply(list).reset_index()
-ratings=pd.concat([rating1[['userid', 'itemid']], rating2['timestamp']], axis=1)
 
 # split
 for split_type in type:
+    ratings = pd.concat([rating1[['userid', 'itemid']], rating2['timestamp']], axis=1)
     if split_type=='leave-one-out':
         ratings['test_positive_index']=ratings['timestamp'].apply(lambda x: np.array(x).argmax())
         ratings['test_positive']=ratings.apply(lambda x: x['itemid'][x['test_positive_index']], axis=1)
