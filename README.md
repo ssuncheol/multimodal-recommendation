@@ -30,7 +30,7 @@ Movielens Dataset can be downloaded here<br>
 [Movielens dataset(raw)](https://drive.google.com/drive/folders/1iRU83v1Ut8RwsH2RAlE2cYPy2iwzsEPg)
 
 - ratings_movielens.csv (Rating data, userid::itemid::rating::timestamp)
-  * [Ratio-split](https://drive.google.com/drive/u/0/folders/19ZRPasxSeUVFGuAUv4EXmYgKXbZdYlCg) / [Leave-one-out](https://drive.google.com/drive/u/0/folders/1wxmfrliK1rpeZKME6UT9_JCHP3fMfUGj)/index-info[https://drive.google.com/drive/u/0/folders/1exTuwPmmCeIUv_TwA-Q5oDVPdrUwDyeN]
+  * [Ratio-split](https://drive.google.com/drive/u/0/folders/19ZRPasxSeUVFGuAUv4EXmYgKXbZdYlCg) / [Leave-one-out](https://drive.google.com/drive/u/0/folders/1wxmfrliK1rpeZKME6UT9_JCHP3fMfUGj)/[index-info](https://drive.google.com/drive/u/0/folders/1exTuwPmmCeIUv_TwA-Q5oDVPdrUwDyeN)
 - user_movielens.json (User meta data)
 - item_movielens.json (Movie meta data)
 - image_movielens.zip (Image of posters, 'movieid.jpg')
