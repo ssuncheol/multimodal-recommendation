@@ -1,6 +1,7 @@
 import math
 import pandas as pd
 import numpy as np
+import time 
 
 class MetronAtK(object):
     def __init__(self, top_k):
@@ -24,7 +25,6 @@ class MetronAtK(object):
         assert isinstance(subjects, list)
         test_users, test_items, test_scores = subjects[0], subjects[1], subjects[2]
         neg_users, neg_items, neg_scores = subjects[3], subjects[4], subjects[5]
-        
         # the golden set
         test = pd.DataFrame({'user': test_users,
                              'test_item': test_items,
@@ -33,12 +33,15 @@ class MetronAtK(object):
         full = pd.DataFrame({'user': neg_users + test_users,
                             'item': neg_items + test_items,
                             'score': neg_scores + test_scores})
-        #import pdb; pdb.set_trace()
+
         full = pd.merge(full, test, on=['user'], how='left')
         
         # rank the items according to the scores for each user 
+        
         full['rank'] = full.groupby('user')['score'].rank(method='first', ascending=False)
+        
         full.sort_values(['user', 'rank'], inplace=True)
+   
         self._subjects = full
 
     def cal_hit_ratio(self):

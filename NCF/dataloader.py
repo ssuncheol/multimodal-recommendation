@@ -147,4 +147,4 @@ class testGenerator(object):
                                         neg_user_tensor=torch.LongTensor(negative_user),
                                         neg_item_tensor=torch.LongTensor(negative_item))
         
-        return DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers = 4)
+        return DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers = 0)

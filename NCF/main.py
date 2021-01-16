@@ -134,7 +134,6 @@ def main():
     user, item, rating = MD.trainset
     test_user,test_item,test_negative_user,test_negative_item = MD.evaluate_data
     
-
     #NCF model
     # feature X
     if args.feature == False:
