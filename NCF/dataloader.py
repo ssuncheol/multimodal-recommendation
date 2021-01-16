@@ -8,14 +8,18 @@ from torch.utils.data import DataLoader, Dataset
 random.seed(42)
 
 class UserItemRatingDataset(Dataset):
-    def __init__(self, user_tensor, item_tensor, target_tensor):
+    def __init__(self, user_tensor, item_tensor, target_tensor,**kwargs):
         
         self.user_tensor = user_tensor
         self.item_tensor = item_tensor
         self.target_tensor = target_tensor
-
-    def __getitem__(self, index):
-        return self.user_tensor[index], self.item_tensor[index], self.target_tensor[index]
+        if ('image' in kwargs.keys()) :
+            self.image_dict = kwargs['image']
+            
+    def __getitem__(self, index): 
+        
+        return self.user_tensor[index], self.item_tensor[index], self.target_tensor[index], torch.FloatTensor(self.image_dict[self.item_tensor[index].item()])
+        
 
     def __len__(self):
         return self.user_tensor.size(0)
@@ -31,7 +35,6 @@ class Make_Dataset(object):
         assert 'train_negative' in ratings.columns
         assert 'test_positive' in ratings.columns
         assert 'test_negative' in ratings.columns
-
         self.ratings = ratings
         self.positive_len = ratings["train_positive"].map(len)
         self.negative_len = ratings["test_negative"].map(len)
@@ -39,7 +42,7 @@ class Make_Dataset(object):
         self.trainset = self._trainset(ratings)
         self.evaluate_data = self._evaluate_data(ratings)
         
-        
+         
     def _trainset(self, ratings):
         #make train data
         user = np.array(np.repeat(ratings["userid"], self.positive_len))
@@ -56,7 +59,6 @@ class Make_Dataset(object):
         test_negative_item = np.array([item for items in ratings['test_negative'] for item in items])
         return [torch.LongTensor(test_user), torch.LongTensor(test_item), torch.LongTensor(test_negative_user),
                 torch.LongTensor(test_negative_item)]
-    
     
      
 class SampleGenerator(object):
@@ -85,12 +87,64 @@ class SampleGenerator(object):
         return train_user, train_item, train_rating
     
     
-    def instance_a_train_loader(self, batch_size):
+    def instance_a_train_loader(self, batch_size,**kwargs):
         user = self.train_user
         item = self.train_item
-        rating = self.train_rating        
-        dataset = UserItemRatingDataset(user_tensor=torch.LongTensor(user),
+        rating = self.train_rating
+        
+        if ('image' in kwargs.keys()):
+            dataset = UserItemRatingDataset(user_tensor=torch.LongTensor(user),
+                                        item_tensor=torch.LongTensor(item),
+                                        target_tensor=torch.FloatTensor(rating),
+                                        image=kwargs['image']
+                                        )
+        else:            
+            dataset = UserItemRatingDataset(user_tensor=torch.LongTensor(user),
                                         item_tensor=torch.LongTensor(item),
                                         target_tensor=torch.FloatTensor(rating))
+        
+        return DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers = 6)
 
-        return DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers = 4)
+
+
+class UserItemtestDataset(Dataset):
+    def __init__(self, user_tensor, item_tensor, **kwargs):
+        
+        self.user_tensor = user_tensor
+        self.item_tensor = item_tensor
+        if ('image' in kwargs.keys()) :
+            self.image_dict = kwargs['image']
+            
+    def __getitem__(self, index): 
+        
+        return self.user_tensor[index], self.item_tensor[index], torch.FloatTensor(self.image_dict[self.item_tensor[index].item()])
+        
+
+    def __len__(self):
+        return self.user_tensor.size(0)
+
+
+
+
+class testGenerator(object):
+    def __init__(self,test_user,test_item):
+        self.user = test_user
+        self.item = test_item
+        
+
+    def instance_a_test_loader(self, batch_size,**kwargs):
+        user = self.user
+        item = self.item
+        
+        if ('image' in kwargs.keys()):
+            dataset = UserItemtestDataset(user_tensor=torch.LongTensor(user),
+                                        item_tensor=torch.LongTensor(item),
+                                        image=kwargs['image']
+                                        )
+        else:            
+            dataset = UserItemtestDataset(user_tensor=torch.LongTensor(user),
+                                        item_tensor=torch.LongTensor(item),
+                                        neg_user_tensor=torch.LongTensor(negative_user),
+                                        neg_item_tensor=torch.LongTensor(negative_item))
+        
+        return DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers = 4)

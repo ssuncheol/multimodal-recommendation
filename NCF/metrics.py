@@ -33,6 +33,7 @@ class MetronAtK(object):
         full = pd.DataFrame({'user': neg_users + test_users,
                             'item': neg_items + test_items,
                             'score': neg_scores + test_scores})
+        #import pdb; pdb.set_trace()
         full = pd.merge(full, test, on=['user'], how='left')
         
         # rank the items according to the scores for each user 

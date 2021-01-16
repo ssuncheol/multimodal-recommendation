@@ -12,12 +12,11 @@ class NeuralCF(nn.Module):
         self.item_embedding_mlp = nn.Embedding(num_items,embedding_size)
         
 
-        if ('image' in kwargs.keys()) & ('text' in kwargs.keys()):
+        if ('image' in kwargs.keys()):
             print("IMAGE FEATURE")
             print("TEXT FEATURE")
             self.image_embedding = nn.Linear(kwargs["image"],embedding_size) # Image Embedding
-            self.text_embedding = nn.Linear(kwargs["text"],embedding_size) # Text Embedding
-            self.bn = nn.BatchNorm1d(4*embedding_size)
+            #self.text_embedding = nn.Linear(kwargs["text"],embedding_size) # Text Embedding
  
 
         else:
@@ -27,9 +26,9 @@ class NeuralCF(nn.Module):
         #mlp module 
         MLP_modules = []
         for i in range(num_layers):
-            if ('image' in kwargs.keys()) & ('text' in kwargs.keys()):
+            if ('image' in kwargs.keys()):
                 print("MLP IMAGE TEXT")
-                input_size = 4*embedding_size//(2**i)
+                input_size = 3*embedding_size//(2**i)
 
             else:
                 print("MLP NOT FEATURE")
@@ -40,8 +39,8 @@ class NeuralCF(nn.Module):
         self.MLP_layers =nn.Sequential(*MLP_modules)
         
         # Predict layer
-        if ('image' in kwargs.keys()) & ('text' in kwargs.keys()):
-            self.predict_layer = nn.Linear(embedding_size + (2*int(embedding_size))//(int(2**(num_layers-1))),1)
+        if ('image' in kwargs.keys()):
+            self.predict_layer = nn.Linear(embedding_size + 3*(2*int(embedding_size))//(int(2**(num_layers-1)))//4,1)
         else:
             self.predict_layer = nn.Linear(embedding_size + (int(embedding_size))//(int(2**(num_layers-1))),1)
 
@@ -62,16 +61,14 @@ class NeuralCF(nn.Module):
         user_mlp=self.user_embedding_mlp(user_indices)
         item_mlp=self.item_embedding_mlp(item_indices)
         
-        if ('image' in kwargs.keys()) & ('text' in kwargs.keys()):
+        if ('image' in kwargs.keys()):
             image=F.relu(self.image_embedding(kwargs["image"]))
-            text=F.relu(self.text_embedding(kwargs["text"]))
-            item_mlp = torch.cat([item_mlp,image,text], -1)
+            #text=F.relu(self.text_embedding(kwargs["text"]))
+            item_mlp = torch.cat([item_mlp,image], -1)
             
         
-        gmf=torch.mul(user_gmf,item_gmf) 
+        gmf=torch.mul(user_gmf,item_gmf)
         mlp=torch.cat([user_mlp,item_mlp],-1)
-        if ('image' in kwargs.keys()) & ('text' in kwargs.keys()):
-            mlp = self.bn(mlp)
         mlp = self.MLP_layers(mlp)
         x=torch.cat((gmf,mlp),1)
         x=self.predict_layer(x)

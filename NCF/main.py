@@ -10,7 +10,7 @@ import time
 import random
 from sklearn.preprocessing import LabelEncoder 
 
-from dataloader import Make_Dataset, SampleGenerator
+from dataloader import Make_Dataset, SampleGenerator, testGenerator
 from utils import optimizer
 from model import NeuralCF
 from evaluate import Engine
@@ -34,14 +34,14 @@ def amazon(train, test):
     data["test_negative"] = data.apply(lambda x : list(items - set(x["train_positive"]) - set(x["test_positive"])), axis = 1)
     data["train_negative"] = data.apply(lambda x : list(items - set(x["train_positive"]) - set(x["test_positive"])), axis = 1)
     data["userid"] = data.index
-    image_feature = np.load("/daintlab/data/amazon_office/image_feature.npy", allow_pickle=True)
+    image_feature = np.load("/daintlab/home/sungchul/data/amazon_office/image_feature.npy", allow_pickle=True)
     image_feature = image_feature.item()
-    text_feature = Doc2Vec.load("/daintlab/data/amazon_office/doc2vecFile")
+    text_feature = Doc2Vec.load("/daintlab/home/sungchul/data/amazon_office/doc2vecFile")
     return data, image_feature, text_feature  
-
+     
 
 def main():
-    wandb.init(project="NCF-side")
+    #wandb.init(project="amazon")
     parser = argparse.ArgumentParser()
     parser.add_argument('--data',
                 type=str,
@@ -88,42 +88,52 @@ def main():
                 default='0',
                 help='gpu number')
     args = parser.parse_args()
-    wandb.config.update(args)
+    #wandb.config.update(args)
     
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
+    
+
+    # Select data 
 
     if args.data == "amazon":
-        train = pd.read_csv("/daintlab/data/amazon_office/train.csv")
-        test = pd.read_csv("/daintlab/data/amazon_office/test.csv")
+
+        train = pd.read_csv("/daintlab/home/sungchul/data/amazon_office/train.csv")
+        test = pd.read_csv("/daintlab/home/sungchul/data/amazon_office/test.csv")
         total = pd.concat([train,test])
         num_user = 4874
         num_item = 2406
-        item2image = dict(zip(total["itemID"], total["asin"]))
-        user2review = dict(zip(total["userID"], total["reviewerID"]))
+        image1_feature = dict(zip(total["itemID"], total["asin"]))
+        text1_feature = dict(zip(total["userID"], total["reviewerID"]))
         data, image_feature, text_feature = amazon(train,test)
+        
+        img_dict = {}
+        txt_dict = {}
+        for i in list(image1_feature.keys()):
+            img_dict[i] = image_feature[image1_feature[i]]
+        
         image_shape = 4096
         text_shape = 512
-
+        
     elif args.data == "movie":
-        data = pd.read_feather("/daintlab/data/movielens/movie_3953.ftr")
-        image_feature = pd.read_pickle('/daintlab/data/movielens/image_feature_vec.pickle')
-        text_feature = pd.read_pickle('/daintlab/data/movielens/text_feature_vec.pickle')
+
+        data = pd.read_feather("/daintlab/home/sungchul/data/movielens/movie_3953.ftr")
+        image_feature = pd.read_pickle('/daintlab/home/sungchul/data/movielens/image_feature_vec.pickle')
+        text_feature = pd.read_pickle('/daintlab/home/sungchul/data/movielens/text_feature_vec.pickle')
         data["test_positive"] = data["test_positive"].apply(lambda x : [x])
         num_user = 6041
         num_item = 3953
         image_shape = 512
         text_shape = 300
 
-
-    
     else:
         print("데이터가 존재하지 않습니다.")
         return 0
+
     
     MD = Make_Dataset(ratings = data)
     user, item, rating = MD.trainset
-    evaluate_data = MD.evaluate_data
-
+    test_user,test_item,test_negative_user,test_negative_item = MD.evaluate_data
+    
 
     #NCF model
     # feature X
@@ -146,7 +156,7 @@ def main():
     print(model)
     optim = optimizer(optim=args.optim, lr=args.lr, model=model, weight_decay=args.l2)
     criterion = nn.BCEWithLogitsLoss()
-    wandb.watch(model)
+    #wandb.watch(model)
 
 
     N = []
@@ -159,45 +169,28 @@ def main():
         sample = SampleGenerator(user = user, item = item, 
                                  rating = rating, ratings = data, 
                                  positive_len = MD.positive_len, num_neg = args.num_neg)
-        train_loader = sample.instance_a_train_loader(args.batch_size)
+                           
+        train_loader = sample.instance_a_train_loader(args.batch_size,image=img_dict)
         
         print("Train Loader 생성 완료")
         for batch_id, batch in enumerate(train_loader):
-            users, items, ratings = batch[0], batch[1], batch[2]
+            users, items, ratings, image = batch[0], batch[1], batch[2], batch[3]
             ratings = ratings.float()
-            users, items, ratings = users.cuda(), items.cuda(), ratings.cuda()
+            users, items, ratings, image = users.cuda(), items.cuda(), ratings.cuda(), image.cuda()
             optim.zero_grad() 
             
-            if args.feature == True:
+            if args.feature == True: 
+                output = model(users,items,image=image)
                 
-                image = []
-                text = []
-                if args.data == "amazon":
-                    for i in items :
-                        image_vector = item2image[i.item()]
-                        image.append(image_feature[image_vector])  
-                    for u in users :
-                        text_vector = user2review[u.item()]
-                        text.append(text_feature.infer_vector([text_vector]))
-                else:
-                    for i in items :
-                        image.append(image_feature[i.item()]) 
-                        text.append(text_feature[i.item()])                                  
-                image= torch.FloatTensor(image)
-                image = image.cuda()
-                text= torch.FloatTensor(text)
-                text = text.cuda()
-            
-                output = model(users,items,image=image,text=text,data=args.data)
-            
             
             else:                           
                 output = model(users, items)
+                print(output)
             loss = criterion(output, ratings)
             loss.backward()
             optim.step()
             loss = loss.item()
-            wandb.log({'Batch Loss': loss})
+            #wandb.log({'Batch Loss': loss})
             total_loss += loss
 
         t2 = time.time()
@@ -205,21 +198,43 @@ def main():
  
         engine = Engine()
         if args.data == "amazon":
-            hit_ratio,ndcg = engine.evaluate(model,evaluate_data,epoch_id=epoch,
-                                            feature=args.feature,image=item2image,text=user2review,
-                                            image_feature=image_feature,text_feature=text_feature,
-                                           data=args.data)
-        else:
-            hit_ratio,ndcg = engine.evaluate(model,evaluate_data,
-                                             epoch_id=epoch,
-                                             image_feature=image_feature,
-                                             text_feature=text_feature,
-                                             feature=args.feature,
-                                             data=args.data)
-        wandb.log({"epoch" : epoch,
-                    "HR" : hit_ratio,
-                    "NDCG" : ndcg})
+            if args.feature == True:
+                a=time.time() 
+                evaluate_data = testGenerator(test_user,test_item)
+                evaluate_data_neg = testGenerator(test_negative_user,test_negative_item)
+                test_loader = evaluate_data.instance_a_test_loader(len(test_user)//100,image=img_dict)
+                test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user)//100,image=img_dict) 
+                hit_ratio,ndcg = engine.evaluate(model,test_loader,test_negative_loader,epoch_id=epoch,
+                                                feature=args.feature,image=img_dict,
+                                            data=args.data)
+                b=time.time()
+                print('test:' ,b-a)
+
+            if args.feature == False:
+                a=time.time() 
+                evaluate_data = testGenerator(test_user,test_item, test_negative_user,test_negative_item)
+                test_loader = evaluate_data.instance_a_test_loader(1024) 
+                hit_ratio,ndcg = engine.evaluate(model,test_loader,epoch_id=epoch,
+                                                feature=args.feature,
+                                            data=args.data)
+                b=time.time()
+                print('test:' ,b-a) 
+                
+
+        if args.data == 'movie':
+            if args.feature == True: 
+                hit_ratio,ndcg = engine.evaluate(model,evaluate_data,
+                                                epoch_id=epoch,
+                                                image_feature=image_feature,
+                                                text_feature=text_feature,
+                                                feature=args.feature,
+                                                data=args.data)
+        #wandb.log({"epoch" : epoch,
+                    #"HR" : hit_ratio,
+                    #"NDCG" : ndcg})
         N.append(ndcg)
+
+
 
 if __name__ == '__main__':
     main()
