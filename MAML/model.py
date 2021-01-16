@@ -4,14 +4,14 @@ import torch.nn.functional as F
 
 
 class MAML(nn.Module):
-    def __init__(self, n_users, n_items, embed_dim, dropout_rate,dataset, use_feature):
+    def __init__(self, n_users, n_items, embed_dim, dropout_rate, use_feature, feature_dim):
         super(MAML, self).__init__()
         self.embed_dim = embed_dim
         self.n_users = n_users
         self.n_items = n_items
         self.embed_dim = embed_dim
-        self.dataset=dataset
         self.use_feature = use_feature
+        self.feature_dim = feature_dim
 
         # Embedding Layers
         self.embedding_user = nn.Embedding(n_users, embed_dim, max_norm=1.0)
@@ -19,14 +19,10 @@ class MAML(nn.Module):
 
         # Feature Fusion Layers
         """
-        input dim = 4096+512 = 4608
-        final output dim = embed_dim
+        Feature dim -> embed_dim
         """
         if self.use_feature:
-            if self.dataset=='amazon':
-                input_dim = 4608
-            elif self.dataset=='movielens':
-                input_dim=812
+            input_dim = self.feature_dim
             hidden_dim = 256
             modules = []
             for i in range(3):

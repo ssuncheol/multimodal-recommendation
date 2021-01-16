@@ -1,3 +1,4 @@
+# from comet_ml import Experiment
 import torch
 import argparse
 import json
@@ -5,6 +6,7 @@ import time
 import os
 from torch.utils.data import DataLoader
 import numpy as np
+import torch.multiprocessing as mp
 
 from utils import Logger, AverageMeter, str2bool
 from model import MAML
@@ -13,6 +15,7 @@ import dataset_amazon as D_a
 import dataset_movie as D_m
 from metric import get_performance
 
+
 parser = argparse.ArgumentParser(description='MAML')
 parser.add_argument('--save_path', default='./result', type=str,
                     help='savepath')
@@ -20,10 +23,10 @@ parser.add_argument('--batch_size', default=1024, type=int,
                     help='batch size')
 parser.add_argument('--epoch', default=1000, type=int,
                     help='train epoch')
-parser.add_argument('--data_path', default='./Data/Office', type=str,
+parser.add_argument('--data_path', default='/daintlab/data/recommend/amazon_review/Office', type=str,
                     help='Path to dataset')
 parser.add_argument('--dataset', default='amazon', type=str,
-                    help='Dataset')
+                    help='Dataset : amazon or movielens')
 parser.add_argument('--embed_dim', default=64, type=int,
                     help='Embedding Dimension')
 parser.add_argument('--dropout_rate', default=0.2, type=float,
@@ -44,11 +47,32 @@ parser.add_argument('--load_path', default=None, type=str,
                     help='Path to saved model')
 parser.add_argument('--use_feature', default=True, type=str2bool,
                     help='Whether to use auxiliary information of items')
+parser.add_argument('--eval_freq', default=50, type=int,
+                    help='evaluate performance every n epoch')
+parser.add_argument('--feature_type', default='all', type=str,
+                    help='Type of feature to use. [all, img, txt]')
 
 args = parser.parse_args()
 
 
 def main():
+    # Set Comet ML
+    # experiment = Experiment("xlgnV9PHcoau26wzSxohP8ToM",
+    #                         project_name="MAML",
+    #                         log_git_metadata=False,
+    #                         log_git_patch=False)
+    # hyperparameters = {
+    #     "dataset" : args.dataset,
+    #     "epoch" : args.epoch,
+    #     "margin" : args.margin,
+    #     "lr" : args.lr,
+    #     "feature_weight" : args.feat_weight,
+    #     "covariance_weight" : args.cov_weight,
+    #     "use_feature" : args.use_feature,
+    #     "feature_type" : args.feature_type
+    # }
+    # experiment.log_parameters(hyperparameters)
+
     # Set save path
     save_path = args.save_path
     if not os.path.exists(save_path):
@@ -59,22 +83,26 @@ def main():
         json.dump(args.__dict__, f, indent=2)
 
     # Load dataset
+    print("Loading Dataset")
     path = args.data_path
     dataset=args.dataset
     if dataset=='amazon':
-        train_df, test_df, train_ng_pool, test_negative, num_user, num_item, feature = D_a.load_data(path)
+        train_df, test_df, train_ng_pool, test_negative, num_user, num_item, feature = D_a.load_data(path, args.feature_type)
         train_dataset = D_a.CustomDataset_amazon(train_df, feature, negative=train_ng_pool, num_neg=args.num_neg, istrain=True, use_feature=args.use_feature)
         test_dataset = D_a.CustomDataset_amazon(test_df, feature, negative=test_negative, num_neg=None, istrain=False, use_feature=args.use_feature)
     elif dataset=='movielens':
-        train_df, test_df, train_ng_pool, test_negative, num_user, num_item, feature = D_m.load_data(path)
-        train_dataset = D_m.CustomDataset_movielens(train_df, feature, negative=train_ng_pool, num_neg=args.num_neg, istrain=True)
-        test_dataset = D_m.CustomDataset_movielens(test_df, feature, negative=test_negative, num_neg=None, istrain=False)
+        train_df, test_df, train_ng_pool, test_negative, num_user, num_item, feature = D_m.load_data(path, args.feature_type)
+        train_dataset = D_m.CustomDataset_movielens(train_df, feature, negative=train_ng_pool, num_neg=args.num_neg, istrain=True, use_feature=args.use_feature)
+        test_dataset = D_m.CustomDataset_movielens(test_df, feature, negative=test_negative, num_neg=None, istrain=False, use_feature=args.use_feature)
+    
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4,
                               collate_fn=my_collate_trn)
-    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4, collate_fn=my_collate_tst)
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=8,
+                              collate_fn=my_collate_tst, pin_memory =True)
 
     # Model
-    model = MAML(num_user, num_item, args.embed_dim, args.dropout_rate,dataset, args.use_feature).cuda()
+    feature_dim = feature.shape[-1]
+    model = MAML(num_user, num_item, args.embed_dim, args.dropout_rate, args.use_feature, feature_dim).cuda()
     print(model)
     if args.load_path is not None:
         checkpoint = torch.load(args.load_path)
@@ -103,12 +131,12 @@ def main():
 
     # Train & Eval
     for epoch in range(args.epoch):
-        train_loader.dataset.train_ng_sampling()
+        # with experiment.train():
         train(model, embedding_loss, feature_loss, covariance_loss, optimizer, train_loader, train_logger, epoch)
-        # if (epoch + 1) % 100 == 0 or epoch == 0:
-        if epoch == args.epoch-1:
+        # Save and test Model every n epoch
+        if (epoch + 1) % args.eval_freq == 0 or epoch == 0:
+            # with experiment.test():
             test(model, test_loader, test_logger, epoch)
-            # Save Model every 100 epoch
             torch.save(model.state_dict(), f"{save_path}/model_{epoch + 1}.pth")
 
 
@@ -150,6 +178,12 @@ def train(model, embedding_loss, feature_loss, covariance_loss, optimizer, train
         iter_time.update(time.time() - end)
         end = time.time()
 
+        # Comet ml
+        # experiment.log_metric("Train total loss", loss.item(), step=i, epoch= epoch)
+        # experiment.log_metric("Train embedding loss", loss_e.item(), step=i, epoch= epoch)
+        # experiment.log_metric("Train feature loss", loss_f.item(), step=i, epoch= epoch)
+        # experiment.log_metric("Train covariance loss", loss_c.item(), step=i, epoch= epoch)
+
         if i % 10 == 0:
             print(f"[{epoch + 1}/{args.epoch}][{i}/{len(train_loader)}] Total loss : {total_loss.avg:.4f} \
                 Embedding loss : {embed_loss.avg:.4f} Feature loss : {feat_loss.avg:.4f} \
@@ -163,8 +197,11 @@ def test(model, test_loader, test_logger, epoch):
     model.eval()
     hr = AverageMeter()
     ndcg = AverageMeter()
+    data_time = AverageMeter()
+    iter_time = AverageMeter()
     end = time.time()
     for i, (user, item, feature, label) in enumerate(test_loader):
+        data_time.update(time.time() - end)
         with torch.no_grad():
             user, item, feature, label = user.squeeze(0), item.squeeze(0), feature.squeeze(0), label.squeeze(0)
             user, item, feature, label = user.cuda(), item.cuda(), feature.cuda(), label.cuda()
@@ -178,13 +215,17 @@ def test(model, test_loader, test_logger, epoch):
             hr.update(performance[0])
             ndcg.update(performance[1])
 
-            if i % 100 == 0:
-                print(f"{i + 1} Users tested.")
+            iter_time.update(time.time() - end)
+            end = time.time()
+
+            if i % 50 == 0:
+                print(f"{i + 1} Users tested. Iteration time : {iter_time.avg:.5f}/user Data time : {data_time.avg:.5f}/user")
 
     print(
-        f"Epoch : [{epoch + 1}/{args.epoch}] Hit Ratio : {hr.avg:.4f} nDCG : {ndcg.avg:.4f} Test Time : {time.time() - end:.4f}")
+        f"Epoch : [{epoch + 1}/{args.epoch}] Hit Ratio : {hr.avg:.4f} nDCG : {ndcg.avg:.4f} Test Time : {iter_time.avg:.4f}/user")
     test_logger.write([epoch, hr.avg, ndcg.avg])
-
+    # experiment.log_metric("Test HR@K", hr.avg, epoch= epoch)
+    # experiment.log_metric("Test nDCG@K", ndcg.avg, epoch= epoch)
 
 def my_collate_trn(batch):
     user = [item[0] for item in batch]
@@ -213,4 +254,5 @@ def my_collate_tst(batch):
 
 
 if __name__ == "__main__":
+    mp.set_start_method('spawn')
     main()
