@@ -6,7 +6,7 @@ Amazon Review(Office) Dataset can be downloaded here<br>
 [Amazon Office dataset(raw)](https://drive.google.com/drive/u/0/folders/1NMvsUaaSW9nxtMRnGcQw-8eNY1pjvAJY)
 
 - ratings_office.csv (Rating data, userid::itemid::rating::timestamp)
-  [Ratio-split](https://drive.google.com/drive/u/0/folders/1Glu2QHK0-8ovJSNmk2QhRzxCOWFnFhCx) [Leave-one-out](https://drive.google.com/drive/u/0/folders/17UC3w48_j7cLEE-XRGXerKs69kDQ21S-)
+  * [Ratio-split](https://drive.google.com/drive/u/0/folders/1Glu2QHK0-8ovJSNmk2QhRzxCOWFnFhCx) / [Leave-one-out](https://drive.google.com/drive/u/0/folders/17UC3w48_j7cLEE-XRGXerKs69kDQ21S-)
 - user_item_office.json.gz (Subset of the review data in which all users and item have at least 5 reviews)
 - image_office.zip (Image of items)
 
@@ -30,7 +30,7 @@ Movielens Dataset can be downloaded here<br>
 [Movielens dataset(raw)](https://drive.google.com/drive/folders/1iRU83v1Ut8RwsH2RAlE2cYPy2iwzsEPg)
 
 - ratings_movielens.csv (Rating data, userid::itemid::rating::timestamp)
-  [Ratio-split](https://drive.google.com/drive/u/0/folders/1NwMktGFxxwt0G-8dHKfE1dgBwDCcuzRz) [Leave-one-out](https://drive.google.com/drive/u/0/folders/11A03VKiZCVwHUoJmUn-H-BcTbiM0WdhS)
+  * [Ratio-split](https://drive.google.com/drive/u/0/folders/1NwMktGFxxwt0G-8dHKfE1dgBwDCcuzRz) / [Leave-one-out](https://drive.google.com/drive/u/0/folders/11A03VKiZCVwHUoJmUn-H-BcTbiM0WdhS)
 - user_movielens.json (User meta data)
 - item_movielens.json (Movie meta data)
 - image_movielens.zip (Image of posters, 'movieid.jpg')
