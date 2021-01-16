@@ -12,7 +12,7 @@ Amazon Review(Office) Dataset can be downloaded here<br>
 
 #### Sample user_item_office.json:
 ```
-  "reviewerID": "A2SUAM1J3GNN3B",
+{  "reviewerID": "A2SUAM1J3GNN3B",
   "asin": "0000013714",
   "reviewerName": "J. McDonald",
   "helpful": [2, 3],
@@ -20,21 +20,9 @@ Amazon Review(Office) Dataset can be downloaded here<br>
   "overall": 5.0,
   "summary": "Heavenly Highway Hymns",
   "unixReviewTime": 1252800000,
-  "reviewTime": "09 13, 2009"
+  "reviewTime": "09 13, 2009" }
 ```
 
-#### Data split
-#### Usage
-<pre>
-<code>python data_split.py --data_path <Your data path/ratings.csv> --save_path <Your save path></code></pre>
-The following results will be saved in <pre><code>{<Your save path>}</code></pre>
-<pre>
-<code>
- leave-one-out/train_positive.csv
-              /test_positive.csv
-              /train_negative.csv
-              /test_negative.csv
-</code></pre>
 ### 2) Movielens-1M
 Movielens Dataset can be downloaded here<br>
 [Movielens dataset(raw)](https://drive.google.com/drive/folders/1iRU83v1Ut8RwsH2RAlE2cYPy2iwzsEPg)
@@ -46,16 +34,17 @@ Movielens Dataset can be downloaded here<br>
 - image_movielens.zip (Image of posters, 'movieid.jpg')
 
 #### Sample user_movielens.json :
-<pre>
-<code> {
+```
+{
   '1': {'userid': '1', 'sex': 'F', 'age': '1', 'occupation': '10', 'zip_code': '48067'}
   '2': {'userid': '2', 'sex': 'M', 'age': '56', 'occupation': '16', 'zip_code': '70072'}
     ...
-  }</code></pre>
+  }
+```
 
 #### Sample item_movielens.json :
-<pre>
-<code>{
+```
+{
   '1': {'movieid': '1', 
         'title': 'Toy Story', 
         'year': '1995',
@@ -84,4 +73,23 @@ Movielens Dataset can be downloaded here<br>
         'image_path': './image_movielens/poster/1.jpg'}
   '2': { ... }
     ...
-  }</code></pre>
+  }
+```
+  
+### Data split
+#### Usage
+```python data_split.py --data_path <Your data path/ratings.csv> --save_path <Your save path>```
+The following results will be saved in ```<Your save path>```
+```
+ * leave-one-out/train_positive.csv
+              /test_positive.csv
+              /train_negative.csv
+              /test_negative.csv
+ * ratio-split/train_positive.csv
+              /test_positive.csv
+              /train_negative.csv
+              /test_negative.csv
+ * index-info/user_index.csv
+             /item_index.csv
+
+```
