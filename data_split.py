@@ -43,6 +43,7 @@ for split_type in type:
         ratings['train_negative']=ratings.apply(lambda x: list(items_set - set(x['itemid']) - set(x['test_negative'])), axis=1)
         ratings.apply(lambda x: x['itemid'].remove(x['test_positive']), axis=1)
 
+
     elif split_type=='ratio-split':
         ratings['test_positive']=ratings['itemid'].apply(lambda x: random.sample(x, round(len(x)*0.3)))
         ratings['itemid']=ratings.apply(lambda x: list(set(x['itemid'])-set(x['test_positive'])), axis=1)
@@ -55,6 +56,8 @@ for split_type in type:
     test_positive=ratings.join(ratings['test_positive'].apply(lambda x:pd.Series(x)).stack().reset_index(1,name='test_pos').drop('level_1',axis=1))
 
     # save
+    if not os.path.exists(os.path.join(args.save_path, split_type)):
+        os.makedirs(os.path.join(args.save_path, split_type))
     train_positive[['userid','train_pos']].to_csv(os.path.join(args.save_path,split_type, 'train_positive.csv'),index=False)
     test_positive[['userid','test_pos']].to_csv(os.path.join(args.save_path,split_type, 'test_positive.csv'),index=False)
     ratings[['userid','train_negative']].to_csv(os.path.join(args.save_path,split_type, 'train_negative.csv'),index=False)
