@@ -60,6 +60,3 @@ train_positive[['userid','train_pos']].to_csv(os.path.join(args.save_path, 'trai
 test_positive[['userid','test_pos']].to_csv(os.path.join(args.save_path, 'test_positive.csv'),index=False)
 ratings[['userid','train_negative']].to_csv(os.path.join(args.save_path, 'train_negative.csv'),index=False)
 ratings[['userid','test_negative']].to_csv(os.path.join(args.save_path, 'test_negative.csv'),index=False)
-
-user_id.to_csv(os.path.join(args.save_path, 'user_index.csv'),index=False)
-item_id.to_csv(os.path.join(args.save_path, 'item_index.csv'),index=False)
