@@ -13,13 +13,27 @@ class UserItemRatingDataset(Dataset):
         self.user_tensor = user_tensor
         self.item_tensor = item_tensor
         self.target_tensor = target_tensor
-        if ('image' in kwargs.keys()) :
+        
+        self.image_dict = None
+        self.text_dict = None
+        if 'image' in kwargs.keys() :
             self.image_dict = kwargs['image']
-            
+
+        if 'text' in kwargs.keys():
+            self.text_dict = kwargs['text']
+     
+ 
+
     def __getitem__(self, index): 
-        
-        return self.user_tensor[index], self.item_tensor[index], self.target_tensor[index], torch.FloatTensor(self.image_dict[self.item_tensor[index].item()])
-        
+        if (self.image_dict is not None) & (self.text_dict is not None):
+            return self.user_tensor[index], self.item_tensor[index], self.target_tensor[index], torch.FloatTensor(self.image_dict[self.item_tensor[index].item()]),torch.FloatTensor(self.text_dict[self.item_tensor[index].item()])
+        elif self.image_dict is not None:
+            return self.user_tensor[index], self.item_tensor[index], self.target_tensor[index], torch.FloatTensor(self.image_dict[self.item_tensor[index].item()])
+        elif self.text_dict is not None:
+            return self.user_tensor[index], self.item_tensor[index], self.target_tensor[index], torch.FloatTensor(self.text_dict[self.item_tensor[index].item()])
+        else:
+            return self.user_tensor[index], self.item_tensor[index], self.target_tensor[index]
+
 
     def __len__(self):
         return self.user_tensor.size(0)
@@ -92,13 +106,28 @@ class SampleGenerator(object):
         item = self.train_item
         rating = self.train_rating
         
-        if ('image' in kwargs.keys()):
+        if ("image" in kwargs.keys()) & ("text" in kwargs.keys()):
+            print("IMAGE TEXT")
             dataset = UserItemRatingDataset(user_tensor=torch.LongTensor(user),
                                         item_tensor=torch.LongTensor(item),
                                         target_tensor=torch.FloatTensor(rating),
-                                        image=kwargs['image']
-                                        )
+                                        image=kwargs["image"],text=kwargs["text"])
+        elif "image" in kwargs.keys():
+            print("IMAGE")
+            dataset = UserItemRatingDataset(user_tensor=torch.LongTensor(user),
+                                        item_tensor=torch.LongTensor(item),
+                                        target_tensor=torch.FloatTensor(rating),
+                                        image=kwargs["image"])
+        elif "text" in kwargs.keys():
+            print("TEXT")
+            dataset = UserItemRatingDataset(user_tensor=torch.LongTensor(user),
+                                        item_tensor=torch.LongTensor(item),
+                                        target_tensor=torch.FloatTensor(rating),
+                                        text=kwargs["text"])
+            
+            
         else:            
+            print("NOT")
             dataset = UserItemRatingDataset(user_tensor=torch.LongTensor(user),
                                         item_tensor=torch.LongTensor(item),
                                         target_tensor=torch.FloatTensor(rating))
@@ -112,13 +141,24 @@ class UserItemtestDataset(Dataset):
         
         self.user_tensor = user_tensor
         self.item_tensor = item_tensor
-        if ('image' in kwargs.keys()) :
-            self.image_dict = kwargs['image']
+        self.image_dict2 = None
+        self.text_dict2 = None
+
+
+        if "image" in kwargs.keys():
+            self.image_dict2 = kwargs["image"]
+        if "text" in kwargs.keys():
+            self.text_dict2 = kwargs["text"]
             
     def __getitem__(self, index): 
-        
-        return self.user_tensor[index], self.item_tensor[index], torch.FloatTensor(self.image_dict[self.item_tensor[index].item()])
-        
+        if (self.image_dict2 is not None) & (self.text_dict2 is not None):
+            return self.user_tensor[index], self.item_tensor[index], torch.FloatTensor(self.image_dict2[self.item_tensor[index].item()]),torch.FloatTensor(self.text_dict2[self.item_tensor[index].item()])
+        elif self.image_dict2 is not None:
+            return self.user_tensor[index], self.item_tensor[index], torch.FloatTensor(self.image_dict2[self.item_tensor[index].item()])
+        elif self.text_dict2 is not None:
+            return self.user_tensor[index], self.item_tensor[index], torch.FloatTensor(self.text_dict2[self.item_tensor[index].item()])
+        else:
+            return self.user_tensor[index], self.item_tensor[index]
 
     def __len__(self):
         return self.user_tensor.size(0)
@@ -127,7 +167,7 @@ class UserItemtestDataset(Dataset):
 
 
 class testGenerator(object):
-    def __init__(self,test_user,test_item):
+    def __init__(self,test_user,test_item,**kwargs):
         self.user = test_user
         self.item = test_item
         
@@ -136,15 +176,23 @@ class testGenerator(object):
         user = self.user
         item = self.item
         
-        if ('image' in kwargs.keys()):
+        if ('image' in kwargs.keys()) & ('text' in kwargs.keys()):
+            print("TEST IMAGE TEXT")
             dataset = UserItemtestDataset(user_tensor=torch.LongTensor(user),
                                         item_tensor=torch.LongTensor(item),
-                                        image=kwargs['image']
-                                        )
+                                        image=kwargs['image'],text=kwargs['text'])
+        elif ('image' in kwargs.keys()):
+            print("TEST IMAGE")
+            dataset = UserItemtestDataset(user_tensor=torch.LongTensor(user),
+                                        item_tensor=torch.LongTensor(item),
+                                        image=kwargs['image'])
+        elif ('text' in kwargs.keys()):
+            print("TEST TEXT")
+            dataset = UserItemtestDataset(user_tensor=torch.LongTensor(user),
+                                        item_tensor=torch.LongTensor(item),
+                                        text=kwargs['text'])
         else:            
+            print("TEST")
             dataset = UserItemtestDataset(user_tensor=torch.LongTensor(user),
-                                        item_tensor=torch.LongTensor(item),
-                                        neg_user_tensor=torch.LongTensor(negative_user),
-                                        neg_item_tensor=torch.LongTensor(negative_item))
-        
-        return DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers = 0)
+                                        item_tensor=torch.LongTensor(item))
+        return DataLoader(dataset   , batch_size=batch_size, shuffle=False, num_workers = 0)

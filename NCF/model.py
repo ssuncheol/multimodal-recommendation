@@ -14,32 +14,39 @@ class NeuralCF(nn.Module):
 
         if ('image' in kwargs.keys()):
             print("IMAGE FEATURE")
-            print("TEXT FEATURE")
             self.image_embedding = nn.Linear(kwargs["image"],embedding_size) # Image Embedding
-            #self.text_embedding = nn.Linear(kwargs["text"],embedding_size) # Text Embedding
+        if ('text' in kwargs.keys()):
+            print("TEXT FEATURE")
+            self.text_embedding = nn.Linear(kwargs["text"],embedding_size) # Text Embedding
  
-
-        else:
-            print("NOT FEATURE")
-            
 
         #mlp module 
         MLP_modules = []
-        for i in range(num_layers):
-            if ('image' in kwargs.keys()):
-                print("MLP IMAGE TEXT")
+        if ('image' in kwargs.keys()) & ('text' in kwargs.keys()):
+            print("MLP FEATURE 2")
+            for i in range(num_layers):
+                input_size = 4*embedding_size//(2**i)
+                MLP_modules.append(nn.Linear(input_size,input_size//2))
+                MLP_modules.append(nn.ReLU())
+        elif ('image' in kwargs.keys()) | ('text' in kwargs.keys()):
+            print("MLP FEATURE 1")
+            for i in range(num_layers):
                 input_size = 3*embedding_size//(2**i)
-
-            else:
-                print("MLP NOT FEATURE")
+                MLP_modules.append(nn.Linear(input_size,input_size//2))
+                MLP_modules.append(nn.ReLU())
+        else:
+            print("MLP FEATURE 0")
+            for i in range(num_layers):
                 input_size = 2*embedding_size//(2**i)  
-            MLP_modules.append(nn.Linear(input_size,input_size//2))
-            MLP_modules.append(nn.ReLU())
+                MLP_modules.append(nn.Linear(input_size,input_size//2))
+                MLP_modules.append(nn.ReLU())
 
         self.MLP_layers =nn.Sequential(*MLP_modules)
         
         # Predict layer
-        if ('image' in kwargs.keys()):
+        if ('image' in kwargs.keys()) & ('text' in kwargs.keys()):
+            self.predict_layer = nn.Linear(embedding_size + 4*(2*int(embedding_size))//(int(2**(num_layers-1)))//4,1)
+        elif ('image' in kwargs.keys()) | ('text' in kwargs.keys()):
             self.predict_layer = nn.Linear(embedding_size + 3*(2*int(embedding_size))//(int(2**(num_layers-1)))//4,1)
         else:
             self.predict_layer = nn.Linear(embedding_size + (int(embedding_size))//(int(2**(num_layers-1))),1)
@@ -63,8 +70,10 @@ class NeuralCF(nn.Module):
         
         if ('image' in kwargs.keys()):
             image=F.relu(self.image_embedding(kwargs["image"]))
-            #text=F.relu(self.text_embedding(kwargs["text"]))
             item_mlp = torch.cat([item_mlp,image], -1)
+        if ('text' in kwargs.keys()):
+            text=F.relu(self.text_embedding(kwargs["text"]))
+            item_mlp = torch.cat([item_mlp,text], -1)
             
         
         gmf=torch.mul(user_gmf,item_gmf)
