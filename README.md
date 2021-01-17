@@ -6,13 +6,12 @@ Amazon Review(Office) Dataset can be downloaded here<br>
 [Amazon Office dataset(raw)](https://drive.google.com/drive/u/0/folders/1NMvsUaaSW9nxtMRnGcQw-8eNY1pjvAJY)
 
 - ratings_office.csv (Rating data, userid::itemid::rating::timestamp)
-- image_office.zip (Image of items)
 - user_item_office.json.gz (Subset of the review data in which all users and item have at least 5 reviews)
+- image_office.zip (Image of items)
 
 #### Sample user_item_office.json:
-<pre>
-<code> {
-  "reviewerID": "A2SUAM1J3GNN3B",
+```
+{  "reviewerID": "A2SUAM1J3GNN3B",
   "asin": "0000013714",
   "reviewerName": "J. McDonald",
   "helpful": [2, 3],
@@ -20,8 +19,8 @@ Amazon Review(Office) Dataset can be downloaded here<br>
   "overall": 5.0,
   "summary": "Heavenly Highway Hymns",
   "unixReviewTime": 1252800000,
-  "reviewTime": "09 13, 2009"
-}</code></pre>
+  "reviewTime": "09 13, 2009" }
+```
 
 
 ### 2) Movielens-1M
@@ -34,42 +33,61 @@ Movielens Dataset can be downloaded here<br>
 - image_movielens.zip (Image of posters, 'movieid.jpg')
 
 #### Sample user_movielens.json :
-<pre>
-<code> {
-  '1': {'userid': '1', 'sex': 'F', 'age': '1', 'occupation': '10', 'zip_code': '48067'}
-  '2': {'userid': '2', 'sex': 'M', 'age': '56', 'occupation': '16', 'zip_code': '70072'}
-    ...
-  }</code></pre>
+```
+{'1': {'userid': '1', 'sex': 'F', 'age': '1', 'occupation': '10', 'zip_code': '48067'}
+ '2': {'userid': '2', 'sex': 'M', 'age': '56', 'occupation': '16', 'zip_code': '70072'}
+    ...}
+```
 
 #### Sample item_movielens.json :
-<pre>
-<code>{
-  '1': {'movieid': '1', 
-        'title': 'Toy Story', 
-        'year': '1995',
-        'rated': 'G',
-        'released': '22-Nov-95', 
-        'runtime': '81 min', 
-        'genre': 'Animation, Adventure, Comedy, Family, Fantasy', 
-        'director': 'John Lasseter', 
-        'writer': 'John Lasseter (original story by), Pete Docter (original story by), Andrew Stanton (original story by), Joe Ranft (original story by), Joss Whedon (screenplay by), Andrew Stanton (screenplay by), Joel Cohen (screenplay by), Alec Sokolow (screenplay by)', 
-        'actors': 'Tom Hanks, Tim Allen, Don Rickles, Jim Varney', 
-        'plot': 'A little boy named Andy loves to be in his room, playing with his toys, especially his doll named "Woody". But, what do the toys do when Andy is not with them, they come to life. Woody believes that he has life (as a toy) good. However, he must worry about Andy\'s family moving, and what Woody does not know is about Andy\'s birthday party. Woody does not realize that Andy\'s mother gave him an action figure known as Buzz Lightyear, who does not believe that he is a toy, and quickly becomes Andy\'s new favorite toy. Woody, who is now consumed with jealousy, tries to get rid of Buzz. Then, both Woody and Buzz are now lost. They must find a way to get back to Andy before he moves without them, but they will have to pass through a ruthless toy killer, Sid Phillips.', 
-        'language': 'English', 
-        'country': 'USA', 
-        'awards': 'Nominated for 3 Oscars. Another 27 wins & 20 nominations.', 
-        'rate_tomatoes': '100%', 
-        'rate_metacritic': '95.0',
-        'rate_imdb': '8.3', 
-        'imdbvote': '868,378',
-        'imdbid': 'tt0114709', 
-        'type': 'movie', 
-        'dvd': 'nan', 
-        'boxoffice': 'nan', 
-        'production': 'Pixar Animation Studios, Walt Disney Pictures', 
-        'website': 'nan', 
-        'response': 'True', 
-        'image_path': './image_movielens/poster/1.jpg'}
+```
+{'1': {'movieid': '1', 
+       'title': 'Toy Story', 
+       'year': '1995',
+       'rated': 'G',
+       'released': '22-Nov-95', 
+       'runtime': '81 min', 
+       'genre': 'Animation, Adventure, Comedy, Family, Fantasy', 
+       'director': 'John Lasseter', 
+       'writer': 'John Lasseter (original story by), Pete Docter (original story by), Andrew Stanton (original story by), Joe Ranft (original story by), Joss Whedon (screenplay by), Andrew Stanton (screenplay by), Joel Cohen (screenplay by), Alec Sokolow (screenplay by)', 
+       'actors': 'Tom Hanks, Tim Allen, Don Rickles, Jim Varney', 
+       'plot': 'A little boy named Andy loves to be in his room, playing with his toys, especially his doll named "Woody". But, what do the toys do when Andy is not with them, they come to life. Woody believes that he has life (as a toy) good. However, he must worry about Andy\'s family moving, and what Woody does not know is about Andy\'s birthday party. Woody does not realize that Andy\'s mother gave him an action figure known as Buzz Lightyear, who does not believe that he is a toy, and quickly becomes Andy\'s new favorite toy. Woody, who is now consumed with jealousy, tries to get rid of Buzz. Then, both Woody and Buzz are now lost. They must find a way to get back to Andy before he moves without them, but they will have to pass through a ruthless toy killer, Sid Phillips.', 
+       'language': 'English', 
+       'country': 'USA', 
+       'awards': 'Nominated for 3 Oscars. Another 27 wins & 20 nominations.', 
+       'rate_tomatoes': '100%', 
+       'rate_metacritic': '95.0',
+       'rate_imdb': '8.3', 
+       'imdbvote': '868,378',
+       'imdbid': 'tt0114709', 
+       'type': 'movie', 
+       'dvd': 'nan', 
+       'boxoffice': 'nan', 
+       'production': 'Pixar Animation Studios, Walt Disney Pictures', 
+       'website': 'nan', 
+       'response': 'True', 
+       'image_path': './image_movielens/poster/1.jpg'}
   '2': { ... }
-    ...
-  }</code></pre>
+    ...}
+```
+  
+## Data split
+### Usage
+```
+python data_split.py --data_path <Your data path/ratings.csv> --save_path <Your save path>
+```
+The following results will be saved in ```<Your save path>```
+```
+ * leave-one-out/train_positive.csv
+                /test_positive.csv
+                /train_negative.csv
+                /test_negative.csv
+ * ratio-split/train_positive.csv
+              /test_positive.csv
+              /train_negative.csv
+              /test_negative.csv
+ * index-info/user_index.csv
+             /item_index.csv
+```
+* Amazon office : [Ratio-split](https://drive.google.com/drive/u/0/folders/1Mis3TiY2883WOzVT8XxyIt_zwrpsuFY4) / [Leave-one-out](https://drive.google.com/drive/u/0/folders/1E22TfRHUgdaXxBfen_a_MLVOKAkuzbzB) / [index_info](https://drive.google.com/drive/u/0/folders/1V6i9qN3cUrGQ47-JCSSwuMd9oJEMsvB4)
+* Movielens : [Ratio-split](https://drive.google.com/drive/u/0/folders/19ZRPasxSeUVFGuAUv4EXmYgKXbZdYlCg) / [Leave-one-out](https://drive.google.com/drive/u/0/folders/1wxmfrliK1rpeZKME6UT9_JCHP3fMfUGj) / [index-info](https://drive.google.com/drive/u/0/folders/1exTuwPmmCeIUv_TwA-Q5oDVPdrUwDyeN)

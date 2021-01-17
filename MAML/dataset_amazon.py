@@ -7,7 +7,7 @@ from gensim.models.doc2vec import Doc2Vec
 from torch.utils.data import Dataset
 import pickle
 
-def load_data(path):
+def load_data(path, feature_type):
     train_df = pd.read_csv(os.path.join(path, 'train.csv'), index_col=None, usecols=None)    
     test_df = pd.read_csv(os.path.join(path, 'test.csv'), index_col=None, usecols=None)
 
@@ -24,7 +24,6 @@ def load_data(path):
     num_user = max(train_df["userID"]) + 1
     num_item = max(train_df["itemID"]) + 1
 
-    end = time.time()
     test_negative = []
     train_ng_pool = []
 
@@ -40,7 +39,6 @@ def load_data(path):
         train_ng_pool.append(train_ng_item_u.tolist())
         test_negative.append(test_ng_item_u.tolist())
 
-    # train_dataset = train_df.values.tolist()
     test_df = pd.DataFrame(test_df[['userID', 'itemID']])
     test_df['rating'] = 1
 
@@ -63,8 +61,12 @@ def load_data(path):
     for i in range(num_item):
         t_features.append(text_vec[asin_i_dic[i]])
         v_features.append(vis_vec[asin_i_dic[i]])
-
-    feature = np.concatenate((t_features, v_features), axis=1)
+    if feature_type == "all":
+        feature = np.concatenate((t_features, v_features), axis=1)
+    elif feature_type == "img":
+        feature = np.array(v_features)
+    elif feature_type == "txt":
+        feature = np.array(t_features)
     train_df = pd.DataFrame(train_df[["userID", "itemID"]])
 
     return train_df, test_df, train_ng_pool, test_negative, num_user, num_item, feature
@@ -88,38 +90,17 @@ class CustomDataset_amazon(Dataset):
 
     def __init__(self, dataset, feature, negative, num_neg=4, istrain=False, use_feature = True):
         super(CustomDataset_amazon, self).__init__()
-        self.dataset = dataset
-        self.feature = feature
-        self.negative = negative
+        self.dataset = dataset # df
+        self.feature = feature # numpy
+        self.negative = np.array(negative) # list->np
         self.istrain = istrain
         self.num_neg = num_neg
-        self.train_dataset = None
         self.use_feature = use_feature
 
-        if istrain:
-            self.train_ng_sampling()
-        else:
+        if not istrain:
             self.make_testset()
-
-    def train_ng_sampling(self):
-        assert self.istrain
-        end = time.time()
-        print(f"Negative sampling for Train. {self.num_neg} Negative samples per positive pair")
-
-        train_negative = []
-        for index, row in self.dataset.iterrows():
-            user = int(row["userID"])
-            ng_pool = self.negative[user]
-            ng_item_u = []
-            # Sampling num_neg samples
-            for i in range(self.num_neg):
-                idx = np.random.randint(0, len(ng_pool))
-                ng_item_u.append(ng_pool[idx])
-            train_negative.append(ng_item_u)
-
-        self.dataset["negative"] = train_negative
-        self.train_dataset = self.dataset.values.tolist()
-        print(f"Negative Sampling Complete ({time.time() - end:.4f} sec)")
+        else:
+            self.dataset = np.array(self.dataset)
 
     def make_testset(self):
         assert not self.istrain
@@ -142,7 +123,11 @@ class CustomDataset_amazon(Dataset):
 
     def __getitem__(self, index):
         if self.istrain:
-            user, item_p, item_n = self.train_dataset[index]
+            user, item_p = self.dataset[index]
+            # Negative sampling
+            ng_pool = np.array(self.negative[user])
+            idx = np.random.choice(len(ng_pool),self.num_neg,replace=False)
+            item_n = ng_pool[idx].tolist()
             if self.use_feature:
                 feature_p = self.feature[item_p]
                 feature_n = self.feature[item_n]

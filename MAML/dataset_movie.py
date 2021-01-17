@@ -6,32 +6,31 @@ import time
 from torch.utils.data import Dataset
 import pickle
 
-def load_data(path):
+def load_data(path, feature_type):
 
     data = pd.read_feather(os.path.join(path, 'movie_3953.ftr'))
-    movie_data = pd.read_csv(os.path.join(path, 'movies.csv'))
 
-    num_user = max(data["userid"]) + 1
-    num_item = max(movie_data["movieid"]) + 1
+    # +1 if starts with 0
+    num_user = max(data["userid"])
+    # num_user = max(data["userid"])+1
 
-    end = time.time()
     test_negative = []
     train_ng_pool = []
-    total_item = np.arange(0, num_item)
 
-    trn_positive_len= data['train_positive'].map(len)
+    trn_positive_len = data['train_positive'].map(len)
     tst_positive_item = data[['userid', 'test_positive']].copy()
-    trn_positive_item=[]
+    trn_positive_item = []
 
-    for user in range(num_user-1):
+    for user in range(num_user):
         train_ng_pool.append(data['train_negative'][user].tolist())
         test_negative.append(data['test_negative'][user].tolist())
 
         for i in range(trn_positive_len[user]):
             trn_positive_item.append([data['userid'][user],data['train_positive'][user][i]])
 
-    trn_positive_item=pd.DataFrame(trn_positive_item)
-    trn_positive_item=trn_positive_item.rename(columns={0: 'userid', 1: 'movieid'})
+    trn_positive_item = pd.DataFrame(trn_positive_item)
+    trn_positive_item = trn_positive_item.rename(columns={0: 'userID', 1: 'itemID'})
+    tst_positive_item = tst_positive_item.rename(columns={'userid': 'userID', 'test_positive': 'itemID'})
 
     with open(os.path.join(path, 'image_feature_vec.pickle'), 'rb') as f:
         img_vec = pickle.load(f)
@@ -46,14 +45,27 @@ def load_data(path):
         t_features.append(text_vec[keys[i]])
         v_features.append(img_vec[keys[i]])
 
-    feature = np.concatenate((t_features, v_features), axis=1)
-    feature_dict={}
-    for i in range(len(keys)):
-        feature_dict[keys[i]]=feature[i]
+    if feature_type == "all":
+        feature = np.concatenate((t_features, v_features), axis=1)
+    elif feature_type == "img":
+        feature = np.array(v_features)
+    elif feature_type == "txt":
+        feature = np.array(t_features)
+    
+    item_list = keys
+    # User 1 -> 0
+    trn_positive_item["userID"] = trn_positive_item["userID"]-1
+    tst_positive_item["userID"] = tst_positive_item["userID"]-1
+    # Change trn&tst df item ID
+    items = trn_positive_item["itemID"].values.tolist()
+    trn_positive_item["itemID"] = trn_positive_item["itemID"].map(item_list.index)
+    tst_positive_item["itemID"] = tst_positive_item["itemID"].map(item_list.index)
+    # Change train ng pool item ID
+    for u in range(num_user):
+        train_ng_pool[u] = list(map(item_list.index, train_ng_pool[u]))
+        test_negative[u] = list(map(item_list.index, test_negative[u]))
 
-    return trn_positive_item, tst_positive_item, train_ng_pool, test_negative, num_user, num_item, feature_dict
-
-
+    return trn_positive_item, tst_positive_item, train_ng_pool, test_negative, num_user, len(item_list), feature
 
 
 class CustomDataset_movielens(Dataset):
@@ -72,45 +84,27 @@ class CustomDataset_movielens(Dataset):
     label = [N] 1 for positive, 0 for negative
     '''
 
-    def __init__(self, dataset, feature, negative, num_neg=4, istrain=False):
+    def __init__(self, dataset, feature, negative, num_neg=4, istrain=False, use_feature = True):
         super(CustomDataset_movielens, self).__init__()
-        self.dataset = dataset
-        self.feature = feature
-        self.negative = negative
+        self.dataset = dataset # df
+        self.feature = feature # numpy
+        self.negative = np.array(negative) # list->np
         self.istrain = istrain
         self.num_neg = num_neg
-        self.train_dataset = None
+        self.use_feature = use_feature
 
-        if istrain:
-            self.train_ng_sampling()
-        else:
+        if not istrain:
             self.make_testset()
-
-    def train_ng_sampling(self):
-        assert self.istrain
-        end = time.time()
-        print(f"Negative sampling for Train. {self.num_neg} Negative samples per positive pair")
-        train_negative = []
-        for index, row in self.dataset.iterrows():
-            user = int(row["userid"])-1
-            ng_pool = self.negative[user]
-            ng_item_u = []
-            # Sampling num_neg samples
-            for i in range(self.num_neg):
-                idx = np.random.randint(0, len(ng_pool))
-                ng_item_u.append(ng_pool[idx])
-            train_negative.append(ng_item_u)
-        self.dataset["negative"] = train_negative
-        self.train_dataset = self.dataset.values.tolist()
-        print(f"Negative Sampling Complete ({time.time() - end:.4f} sec)")
+        else:
+            self.dataset = np.array(self.dataset)
 
     def make_testset(self):
         assert not self.istrain
-        users = np.unique(self.dataset["userid"])
+        users = np.unique(self.dataset["userID"])
         test_dataset = []
         for user in users:
-            test_negative = self.negative[user-1]
-            test_positive = self.dataset[self.dataset["userid"] == user]["test_positive"].tolist()
+            test_negative = self.negative[user]
+            test_positive = self.dataset[self.dataset["userID"] == user]["itemID"].tolist()
             item = test_positive + test_negative
             label = np.zeros(len(item))
             label[:len(test_positive)] = 1
@@ -125,30 +119,22 @@ class CustomDataset_movielens(Dataset):
 
     def __getitem__(self, index):
         if self.istrain:
-            user, item_p, item_n = self.train_dataset[index]
-            feature_p = self.feature[item_p]
-            feature_n=[]
-            for i in range(len(item_n)):
-                feature_n.append(self.feature[item_n[i]])
-            feature_n=np.array(feature_n)
-            return user, item_p, item_n, feature_p, feature_n
-
+            user, item_p = self.dataset[index]
+            # Negative sampling
+            ng_pool = np.array(self.negative[user])
+            idx = np.random.choice(len(ng_pool),self.num_neg,replace=False)
+            item_n = ng_pool[idx].tolist()
+            if self.use_feature:
+                feature_p = self.feature[item_p]
+                feature_n = self.feature[item_n]
+                return user, item_p, item_n, feature_p, feature_n
+            else:
+                return user, item_p, item_n, 0.0, 0.0
         else:
             user, item, label = self.dataset[index]
-            feature=[]
-            for i in range(len(item)):
-                feature.append(self.feature[item[i]])
-            feature=np.array(feature)
-            return user, item, feature, label
+            if self.use_feature:
+                feature = self.feature[item]
+                return user, item, feature, label
+            else:
+                return user, item, 0.0, label
 
-
-def inspect(df, num_inter):
-    user = np.unique(df["userid"])
-    x_user = []
-    x_num_rating = []
-    for i in user:
-        if len(df[df["userid"] == i]) < num_inter:
-            x_user.append(i)
-            x_num_rating.append(len(df[df["userid"] == i]))
-
-    return x_user, x_num_rating
