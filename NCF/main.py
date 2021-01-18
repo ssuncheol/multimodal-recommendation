@@ -34,14 +34,14 @@ def amazon(train, test):
     data["test_negative"] = data.apply(lambda x : list(items - set(x["train_positive"]) - set(x["test_positive"])), axis = 1)
     data["train_negative"] = data.apply(lambda x : list(items - set(x["train_positive"]) - set(x["test_positive"])), axis = 1)
     data["userid"] = data.index
-    image_feature = np.load("/daintlab/data/amazon_office/image_feature.npy", allow_pickle=True)
+    image_feature = np.load("/daintlab/home/tmddnjs3467/workspace/amazon_office/image_feature.npy", allow_pickle=True)
     image_feature = image_feature.item()
-    text_feature = Doc2Vec.load("/daintlab/data/amazon_office/doc2vecFile")
+    text_feature = Doc2Vec.load("/daintlab/home/tmddnjs3467/workspace/amazon_office/doc2vecFile")
     return data, image_feature, text_feature  
      
 
 def main():
-    wandb.init(project="amazon ncf")
+    wandb.init(project="Real Total NCF")
     parser = argparse.ArgumentParser()
     parser.add_argument('--data',
                 type=str,
@@ -105,8 +105,8 @@ def main():
 
     if args.data == "amazon":
 
-        train = pd.read_csv("/daintlab/data/amazon_office/train.csv")
-        test = pd.read_csv("/daintlab/data/amazon_office/test.csv")
+        train = pd.read_csv("/daintlab/home/tmddnjs3467/workspace/amazon_office/train.csv")
+        test = pd.read_csv("/daintlab/home/tmddnjs3467/workspace/amazon_office/test.csv")
         total = pd.concat([train,test])
         num_user = 4874
         num_item = 2406
@@ -120,15 +120,16 @@ def main():
             img_dict[i] = image_feature[image1_feature[i]]
         for j in list(text1_feature.keys()):
             txt_dict[j] = text_feature.infer_vector([text1_feature[j]])
+        import pdb; pdb.set_trace()
         #print(txt_dict)
         image_shape = 4096
         text_shape = 512
         
     elif args.data == "movie":
 
-        data = pd.read_feather("/daintlab/data/movielens/movie_3953.ftr")
-        image_feature = pd.read_pickle('/daintlab/data/movielens/image_feature_vec.pickle')
-        text_feature = pd.read_pickle('/daintlab/data/movielens/text_feature_vec.pickle')
+        data = pd.read_feather("/daintlab/home/tmddnjs3467/workspace/movielense/movie_3953.ftr")
+        img_dict = pd.read_pickle('/daintlab/home/tmddnjs3467/workspace/movielense/image_feature_vec.pickle')
+        txt_dict = pd.read_pickle('/daintlab/home/tmddnjs3467/workspace/movielense/text_feature_vec.pickle')
         data["test_positive"] = data["test_positive"].apply(lambda x : [x])
         num_user = 6041
         num_item = 3953
@@ -259,7 +260,6 @@ def main():
             evaluate_data = testGenerator(test_user,test_item)
             evaluate_data_neg = testGenerator(test_negative_user,test_negative_item)
             if (args.image == True) & (args.text == True):
-
                 test_loader = evaluate_data.instance_a_test_loader(len(test_user)//100,image=img_dict,text=txt_dict)
                 test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user)//100,image=img_dict,text=txt_dict) 
                 hit_ratio,ndcg = engine.evaluate(model,test_loader,test_negative_loader,epoch_id=epoch,image=img_dict,text=txt_dict,data=args.data)
@@ -284,13 +284,29 @@ def main():
                 
 
         else:
-            if args.feature == True: 
-                hit_ratio,ndcg = engine.evaluate(model,evaluate_data,
-                                                epoch_id=epoch,
-                                                image_feature=image_feature,
-                                                text_feature=text_feature,
-                                                feature=args.feature,
-                                                data=args.data)
+            a=time.time() 
+            evaluate_data = testGenerator(test_user,test_item)
+            evaluate_data_neg = testGenerator(test_negative_user,test_negative_item)
+            if (args.image == True) & (args.text == True):
+                test_loader = evaluate_data.instance_a_test_loader(len(test_user)//100,image=img_dict,text=txt_dict)
+                test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user)//100,image=img_dict,text=txt_dict) 
+                hit_ratio,ndcg = engine.evaluate(model,test_loader,test_negative_loader,epoch_id=epoch,image=img_dict,text=txt_dict,data=args.data)
+            elif args.image == True:
+                test_loader = evaluate_data.instance_a_test_loader(len(test_user)//100,image=img_dict)
+                test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user)//100,image=img_dict) 
+                hit_ratio,ndcg = engine.evaluate(model,test_loader,test_negative_loader,epoch_id=epoch,image=img_dict,data=args.data)
+            elif args.text == True:
+                test_loader = evaluate_data.instance_a_test_loader(len(test_user)//100,text=txt_dict)
+                test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user)//100,text=txt_dict) 
+                hit_ratio,ndcg = engine.evaluate(model,test_loader,test_negative_loader,epoch_id=epoch,text=txt_dict,data=args.data)                
+            else:
+                a=time.time() 
+                test_loader = evaluate_data.instance_a_test_loader(len(test_user)//100)
+                test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user)//100) 
+                hit_ratio,ndcg = engine.evaluate(model,test_loader,test_negative_loader,epoch_id=epoch,data=args.data)  
+            b=time.time()
+            print('test:' ,b-a) 
+         
         wandb.log({"epoch" : epoch,
                     "HR" : hit_ratio,
                     "NDCG" : ndcg})
