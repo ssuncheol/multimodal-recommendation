@@ -103,7 +103,10 @@ class CustomDataset_movielens(Dataset):
         users = np.unique(self.dataset["userID"])
         test_dataset = []
         for user in users:
-            test_negative = self.negative[user]
+            if type(self.negative[user])==list:
+                test_negative = self.negative[user]
+            elif type(self.negative[user])==np.ndarray:
+                test_negative = self.negative[user].tolist()
             test_positive = self.dataset[self.dataset["userID"] == user]["itemID"].tolist()
             item = test_positive + test_negative
             label = np.zeros(len(item))
