@@ -6,7 +6,7 @@ Pytorch implementation of [Neural Collaborative Filtering](https://arxiv.org/abs
 
 ## Model
 
-<img width="728" alt="KakaoTalk_20201222_200737563" src="https://user-images.githubusercontent.com/69955858/102883105-cb338f80-4492-11eb-8391-7c9d7da6f32a.png">
+<img width="728" alt="KakaoTalk_20201222_200737563" src="https://user-images.githubusercontent.com/69955858/105034065-53aa4d80-5a9c-11eb-9ec1-f3a0f6bd4409.png">
 
 #### multimodal feature of Movielens
 - Image → [512 dim vector]
@@ -54,7 +54,7 @@ git clone https://github.com/dltkddn0525/recommendation.git
 ## Usage 
 
 ```sh
-python3 main.py --optim='adam' --lr=0.001 --epochs=20 --batch_size=1024 --latent_dim_mf=8 --num_layers=1 --num_neg=4 --gpu=0
+python3 main.py --data=amazon --image=False --text=False --optim=adam --lr=0.001 --epochs=20 --batch_size=1024 --latent_dim_mf=8 --num_layers=1 --num_neg=4 --gpu=0 --eval=ratio-split
 ```
 
 ## Performance metrics
