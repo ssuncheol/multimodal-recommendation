@@ -78,14 +78,14 @@ python data_split.py --data_path <Your data path/ratings.csv> --save_path <Your 
 ```
 The following results will be saved in ```<Your save path>```
 ```
- * leave-one-out/train_positive.csv
-                /test_positive.csv
-                /train_negative.csv
-                /test_negative.csv
- * ratio-split/train_positive.csv
-              /test_positive.csv
-              /train_negative.csv
-              /test_negative.csv
+ * leave-one-out/train_positive.ftr
+                /test_positive.ftr
+                /train_negative.ftr
+                /test_negative.ftr
+ * ratio-split/train_positive.ftr
+              /test_positive.ftr
+              /train_negative.ftr
+              /test_negative.ftr
  * index-info/user_index.csv
              /item_index.csv
 ```

@@ -6,6 +6,7 @@ import time
 from gensim.models.doc2vec import Doc2Vec
 from torch.utils.data import Dataset
 import pickle
+import ast
 
 def load_data(path, feature_type):
     train_df = pd.read_csv(os.path.join(path, 'train.csv'), index_col=None, usecols=None)    
@@ -16,10 +17,10 @@ def load_data(path, feature_type):
     train_df = train_df.append(item_2405)
     test_df = test_df.drop(item_2405.index)
 
-    # Inspect : at least 3 interaction per user for train, 2 per user for test
-    # train_x_user, train_x_num_rating = inspect(train_df,3)
-    # test_x_user, test_x_num_rating = inspect(test_df,2)
-    # print(f"Inspectation : Train = {len(train_x_user)} Users, Test = {len(test_x_user)} Users")
+    # # Inspect : at least 3 interaction per user for train, 2 per user for test
+    # # train_x_user, train_x_num_rating = inspect(train_df,3)
+    # # test_x_user, test_x_num_rating = inspect(test_df,2)
+    # # print(f"Inspectation : Train = {len(train_x_user)} Users, Test = {len(test_x_user)} Users")
 
     num_user = max(train_df["userID"]) + 1
     num_item = max(train_df["itemID"]) + 1
@@ -38,7 +39,6 @@ def load_data(path, feature_type):
         test_ng_item_u = np.setdiff1d(train_ng_item_u, tst_positive_item)
         train_ng_pool.append(train_ng_item_u.tolist())
         test_negative.append(test_ng_item_u.tolist())
-
     test_df = pd.DataFrame(test_df[['userID', 'itemID']])
     test_df['rating'] = 1
 
@@ -67,7 +67,7 @@ def load_data(path, feature_type):
         feature = np.array(v_features)
     elif feature_type == "txt":
         feature = np.array(t_features)
-    train_df = pd.DataFrame(train_df[["userID", "itemID"]])
+    train_df = pd.DataFrame(train_df[["userID","itemID"]])
 
     return train_df, test_df, train_ng_pool, test_negative, num_user, num_item, feature
 
@@ -107,7 +107,10 @@ class CustomDataset_amazon(Dataset):
         users = np.unique(self.dataset["userID"])
         test_dataset = []
         for user in users:
-            test_negative = self.negative[user]
+            if type(self.negative[user])==list:
+                test_negative = self.negative[user]
+            elif type(self.negative[user])==np.ndarray:
+                test_negative = self.negative[user].tolist()
             test_positive = self.dataset[self.dataset["userID"] == user]["itemID"].tolist()
             item = test_positive + test_negative
             label = np.zeros(len(item))
