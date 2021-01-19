@@ -4,33 +4,13 @@ Pytorch implementation of [Neural Collaborative Filtering](https://arxiv.org/abs
 
 ---
 
-## Data preparation 
-
-### Movielens dataset
-
-Data should be prepared as follows
-
-- movie_3953.ftr (Rating data)
-- movies.csv (Information of movie : genre, director)
-- image_feature_vec.pickle (Image features of movie posters extracted from pretrained network(ResNet18))
-- text_feature_vec.pickle (Text features of movie's title + plot extracted from pretrained network(Doc2Vec model))
-
-
-Movielens Dataset can be downloaded here<br>
-[Movielens dataset](https://drive.google.com/drive/folders/15T7s2DDFt1HLlwRVw4ytViKE2rAAXgsj)
-
-
 ## Model
 
 <img width="728" alt="KakaoTalk_20201222_200737563" src="https://user-images.githubusercontent.com/69955858/102883105-cb338f80-4492-11eb-8391-7c9d7da6f32a.png">
 
-
+#### multimodal feature of Movielens
 - Image → [512 dim vector]
 - Text → [300 dim vector]
-- Other Information : 
-
-  - Genre → [23 dim one-hot-vector]
-  - Director → [1918 dim one-hot-vector]
 
 ---
 
@@ -39,7 +19,10 @@ Movielens Dataset can be downloaded here<br>
 
 | Argument | Type | Description | Default |
 |:---:|:---:|:---:|:---:|
-|optim|str|Optimizer|'adam'|
+|data|str|dataset|amazon|
+|image|bool|image feature|False|
+|text|bool|text feature|False|
+|optim|str|Optimizer|adam|
 |lr|float|Learning Rate|0.001|
 |epochs|int|Epoch|20|
 |batch_size|int|Train batch size|1024|
@@ -48,6 +31,7 @@ Movielens Dataset can be downloaded here<br>
 |num_neg|int|Number of negative sample|4|
 |l2|float|L2 Regularization|0|
 |gpu|str|Name of Using gpu|0|
+|eval|str|evaluation protocol|ratio-split|
 
 
 ## Installation 
