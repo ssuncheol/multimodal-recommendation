@@ -5,9 +5,9 @@ import argparse
 import random
 
 parser = argparse.ArgumentParser(description='data_split')
-parser.add_argument('--data_path', default='./movielens_dataset/ratings_movielens.csv', type=str,
+parser.add_argument('--data_path', default='./amazon_dataset/ratings_office.csv', type=str,
                     help='datapath')
-parser.add_argument('--save_path', default='./movielens_dataset', type=str,
+parser.add_argument('--save_path', default='./amazon_dataset', type=str,
                     help='savepath')
 args = parser.parse_args()
 random.seed(1)
@@ -58,10 +58,10 @@ for split_type in type:
     # save
     if not os.path.exists(os.path.join(args.save_path, split_type)):
         os.makedirs(os.path.join(args.save_path, split_type))
-    train_positive[['userid','train_pos']].to_csv(os.path.join(args.save_path,split_type, 'train_positive.csv'),index=False)
-    test_positive[['userid','test_pos']].to_csv(os.path.join(args.save_path,split_type, 'test_positive.csv'),index=False)
-    ratings[['userid','train_negative']].to_csv(os.path.join(args.save_path,split_type, 'train_negative.csv'),index=False)
-    ratings[['userid','test_negative']].to_csv(os.path.join(args.save_path,split_type, 'test_negative.csv'),index=False)
+    train_positive[['userid','train_pos']].reset_index(drop=True).to_feather(os.path.join(args.save_path,split_type, 'train_positive.ftr'))
+    test_positive[['userid','test_pos']].reset_index(drop=True).to_feather(os.path.join(args.save_path,split_type, 'test_positive.ftr'))
+    ratings[['userid','train_negative']].reset_index(drop=True).to_feather(os.path.join(args.save_path,split_type, 'train_negative.ftr'))
+    ratings[['userid','test_negative']].reset_index(drop=True).to_feather(os.path.join(args.save_path,split_type, 'test_negative.ftr'))
 
 if not os.path.exists(os.path.join(args.save_path,'index-info')):
     os.makedirs(os.path.join(args.save_path,'index-info'))
