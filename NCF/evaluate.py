@@ -7,7 +7,7 @@ class Engine(object):
     def __init__(self):
         self._metron = MetronAtK(top_k=10)
         
-    def evaluate(self, model,test_loader,test_negative_loader, epoch_id,**kwargs):
+    def evaluate(self, model, test_loader, test_negative_loader, epoch_id, **kwargs):
         #Evaluate model
         a=time.time()
         model.eval()
@@ -33,20 +33,20 @@ class Engine(object):
                     test_users, test_items , image1, text1 = data2
                     negative_users, negative_items, image2, text2 = data1
                     
-                    test_scores = model(test_users, test_items,image=image1,text=text1)
-                    negative_scores = model(negative_users, negative_items,image=image2,text=text2)
+                    test_scores = model(test_users, test_items, image=image1, text=text1)
+                    negative_scores = model(negative_users, negative_items, image=image2, text=text2)
                 elif 'image' in kwargs.keys():
                     test_users, test_items , image1 = data2
-                    negative_users, negative_items,image2 = data1
+                    negative_users, negative_items, image2 = data1
                     
-                    test_scores = model(test_users, test_items,image=image1)
-                    negative_scores = model(negative_users, negative_items,image=image2)                
+                    test_scores = model(test_users, test_items, image=image1)
+                    negative_scores = model(negative_users, negative_items, image=image2)                
                 elif 'text' in kwargs.keys():
                     test_users, test_items , text1 = data2
-                    negative_users, negative_items,text2 = data1
+                    negative_users, negative_items, text2 = data1
                     
-                    test_scores = model(test_users, test_items,text=text1)
-                    negative_scores = model(negative_users, negative_items,text=text2)                       
+                    test_scores = model(test_users, test_items, text=text1)
+                    negative_scores = model(negative_users, negative_items, text=text2)                       
 
                 else:
                     test_users, test_items = data2
@@ -64,9 +64,6 @@ class Engine(object):
                 t_negative_items.extend(negative_items.detach().numpy())
                 test_score.extend(test_scores.detach().numpy())
                 negative_score.extend(negative_scores.detach().numpy())
-      
-
-        #import pdb; pdb.set_trace()
         
         self._metron.subjects = [t_test_users,
                             t_test_items,
