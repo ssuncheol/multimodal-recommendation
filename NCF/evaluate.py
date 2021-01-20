@@ -10,6 +10,9 @@ class Engine(object):
     def evaluate(self, model, test_loader, test_negative_loader, epoch_id, **kwargs):
         #Evaluate model
         a=time.time()
+        if kwargs['eval'] == 'ratio-split':
+            if (epoch_id + 1) % 10 != 0:
+                return 0, 0, 0
         model.eval()
  
         t_test_users=[]
@@ -100,7 +103,6 @@ class Engine(object):
         b=time.time()
         print("evaluate time:",b-a)  
         return hit_ratio, hit_ratio2, ndcg
-            
-
+        
 
             
