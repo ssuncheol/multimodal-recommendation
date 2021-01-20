@@ -21,14 +21,14 @@ def get_performance(gt_item, recommends):
         # if any gt item is in recommends -> hr = 1
         hr1 = 1
         # hr 2 = # of hit item / # of gt item
-        hr2 = hr/len(gt_item)
+        hr2 = hr/min(len(gt_item), len(recommends))
     else:
         hr1 = 0
         hr2 = 0
 
     # nDCG
     idcg = 0.0
-    for i in range(len(gt_item)):
+    for i in range(min(len(gt_item),len(recommends))):
         idcg += np.reciprocal(np.log2(i+2))
         
     ndcg = dcg / idcg
