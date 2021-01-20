@@ -82,7 +82,7 @@ class MetronAtK(object):
             idcg = 0.0
             for j in range(min(user_pos_item_num_dict[i], 10)):
                 idcg += np.reciprocal(np.log2(j+2))
-                idcg_list.append(idcg)
+            idcg_list.append(idcg)
         test_in_top_k = test_in_top_k.groupby(by=['user'], as_index=False).sum()
         test_in_top_k['idcg'] = idcg_list
         test_in_top_k['ndcg'] = test_in_top_k['dcg'] * 1.0 / test_in_top_k['idcg']
