@@ -237,20 +237,20 @@ def main():
             if (args.image == True) & (args.text == True):
                 test_loader = evaluate_data.instance_a_test_loader(len(test_user) // 100, image=img_dict, text=txt_dict)
                 test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user) // 100, image=img_dict, text=txt_dict) 
-                hit_ratio,ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, image=img_dict, text=txt_dict)
+                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, image=img_dict, text=txt_dict)
             elif args.image == True:
                 test_loader = evaluate_data.instance_a_test_loader(len(test_user) // 100, image=img_dict)
                 test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user) // 100, image=img_dict) 
-                hit_ratio,ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, image=img_dict)
+                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, image=img_dict)
             elif args.text == True:
                 test_loader = evaluate_data.instance_a_test_loader(len(test_user) // 100, text=txt_dict)
                 test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user) // 100, text=txt_dict) 
-                hit_ratio,ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, text=txt_dict)                
+                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, text=txt_dict)                
             else:
                 a=time.time() 
                 test_loader = evaluate_data.instance_a_test_loader(len(test_user) // 100)
                 test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user) // 100) 
-                hit_ratio,ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch)  
+                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch)  
             b=time.time()
             print('test:', b-a) 
                 
@@ -262,25 +262,26 @@ def main():
             if (args.image == True) & (args.text == True):
                 test_loader = evaluate_data.instance_a_test_loader(len(test_user) // 100, image=img_dict, text=txt_dict)
                 test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user) // 100, image=img_dict, text=txt_dict) 
-                hit_ratio,ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, image=img_dict, text=txt_dict)
+                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, image=img_dict, text=txt_dict)
             elif args.image == True:
                 test_loader = evaluate_data.instance_a_test_loader(len(test_user) // 100, image=img_dict)
                 test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user) // 100, image=img_dict) 
-                hit_ratio,ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, image=img_dict)
+                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, image=img_dict)
             elif args.text == True:
                 test_loader = evaluate_data.instance_a_test_loader(len(test_user) // 100, text=txt_dict)
                 test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user) // 100, text=txt_dict) 
-                hit_ratio,ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, text=txt_dict)                
+                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, text=txt_dict)                
             else:
                 a=time.time() 
                 test_loader = evaluate_data.instance_a_test_loader(len(test_user) // 100)
                 test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user) // 100) 
-                hit_ratio,ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch)  
+                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch)  
             b=time.time()
             print('test:' ,b-a) 
          
         wandb.log({"epoch" : epoch,
                     "HR" : hit_ratio,
+                    "HR2" : hit_ratio2,
                     "NDCG" : ndcg})
         N.append(ndcg)
 
