@@ -13,6 +13,7 @@ from model import MAML
 from loss import Embedding_loss, Feature_loss, Covariance_loss
 import dataset_amazon as D_a
 import dataset_movie as D_m
+import dataset as D
 from metric import get_performance
 
 
@@ -21,23 +22,25 @@ parser.add_argument('--save_path', default='./result', type=str,
                     help='savepath')
 parser.add_argument('--batch_size', default=1024, type=int,
                     help='batch size')
-parser.add_argument('--epoch', default=1000, type=int,
+parser.add_argument('--epoch', default=300, type=int,
                     help='train epoch')
-parser.add_argument('--data_path', default='/daintlab/data/recommend/amazon_review/Office', type=str,
-                    help='Path to dataset')
+parser.add_argument('--data_path', default='/daintlab/data/recommend/Movielens-raw', type=str,
+                    help='Path to rating data')
+parser.add_argument('--feature_path', default='/daintlab/data/recommend/movielens', type=str,
+                    help='Path to feature data')
 parser.add_argument('--dataset', default='amazon', type=str,
-                    help='Dataset : amazon or movielens')
+                    help='Path to feature data')
 parser.add_argument('--embed_dim', default=64, type=int,
                     help='Embedding Dimension')
 parser.add_argument('--dropout_rate', default=0.2, type=float,
                     help='Dropout rate')
 parser.add_argument('--lr', default=0.001, type=float,
                     help='Learning rate')
-parser.add_argument('--margin', default=1.6, type=float,
+parser.add_argument('--margin', default=1.0, type=float,
                     help='Margin for embedding loss')
-parser.add_argument('--feat_weight', default=7, type=float,
+parser.add_argument('--feat_weight', default=0, type=float,
                     help='Weight of feature loss')
-parser.add_argument('--cov_weight', default=5, type=float,
+parser.add_argument('--cov_weight', default=0, type=float,
                     help='Weight of covariance loss')
 parser.add_argument('--top_k', default=10, type=int,
                     help='Top k Recommendation')
@@ -51,7 +54,8 @@ parser.add_argument('--eval_freq', default=50, type=int,
                     help='evaluate performance every n epoch')
 parser.add_argument('--feature_type', default='all', type=str,
                     help='Type of feature to use. [all, img, txt]')
-
+parser.add_argument('--eval_type', default='ratio-split', type=str,
+                    help='Evaluation protocol. [ratio-split, leave-one-out]')
 args = parser.parse_args()
 
 
@@ -84,17 +88,25 @@ def main():
 
     # Load dataset
     print("Loading Dataset")
-    path = args.data_path
-    dataset=args.dataset
-    if dataset=='amazon':
-        train_df, test_df, train_ng_pool, test_negative, num_user, num_item, feature = D_a.load_data(path, args.feature_type)
-        train_dataset = D_a.CustomDataset_amazon(train_df, feature, negative=train_ng_pool, num_neg=args.num_neg, istrain=True, use_feature=args.use_feature)
-        test_dataset = D_a.CustomDataset_amazon(test_df, feature, negative=test_negative, num_neg=None, istrain=False, use_feature=args.use_feature)
-    elif dataset=='movielens':
-        train_df, test_df, train_ng_pool, test_negative, num_user, num_item, feature = D_m.load_data(path, args.feature_type)
-        train_dataset = D_m.CustomDataset_movielens(train_df, feature, negative=train_ng_pool, num_neg=args.num_neg, istrain=True, use_feature=args.use_feature)
-        test_dataset = D_m.CustomDataset_movielens(test_df, feature, negative=test_negative, num_neg=None, istrain=False, use_feature=args.use_feature)
+    ###
+    data_path = os.path.join(args.data_path,args.eval_type)
+    feature_path = args.feature_path
     
+    train_df, test_df, train_ng_pool, test_negative, num_user, num_item, feature = D.load_data(data_path, feature_path, args.feature_type)
+    train_dataset = D.CustomDataset(train_df, feature, negative=train_ng_pool, num_neg=args.num_neg, istrain=True, use_feature=args.use_feature)
+    test_dataset = D.CustomDataset(test_df, feature, negative=test_negative, num_neg=None, istrain=False, use_feature=args.use_feature)
+    ###
+    # path = args.data_path
+    # dataset=args.dataset
+    # if dataset=='amazon':
+    #    train_df, test_df, train_ng_pool, test_negative, num_user, num_item, feature = D_a.load_data(path, args.feature_type)
+    #    train_dataset = D_a.CustomDataset_amazon(train_df, feature, negative=train_ng_pool, num_neg=args.num_neg, istrain=True, use_feature=args.use_feature)
+    #    test_dataset = D_a.CustomDataset_amazon(test_df, feature, negative=test_negative, num_neg=None, istrain=False, use_feature=args.use_feature)
+    #elif dataset=='movielens':
+    #    train_df, test_df, train_ng_pool, test_negative, num_user, num_item, feature = D_m.load_data(path, args.feature_type)
+    #    train_dataset = D_m.CustomDataset_movielens(train_df, feature, negative=train_ng_pool, num_neg=args.num_neg, istrain=True, use_feature=args.use_feature)
+    #    test_dataset = D_m.CustomDataset_movielens(test_df, feature, negative=test_negative, num_neg=None, istrain=False, use_feature=args.use_feature)
+    ###
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4,
                               collate_fn=my_collate_trn)
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=8,
@@ -196,6 +208,7 @@ def train(model, embedding_loss, feature_loss, covariance_loss, optimizer, train
 def test(model, test_loader, test_logger, epoch):
     model.eval()
     hr = AverageMeter()
+    hr2 = AverageMeter()
     ndcg = AverageMeter()
     data_time = AverageMeter()
     iter_time = AverageMeter()
@@ -211,9 +224,10 @@ def test(model, test_loader, test_logger, epoch):
             _, indices = torch.topk(-score, args.top_k)
             recommends = torch.take(item, indices).cpu().numpy()
             gt_item = item[pos_idx].cpu().numpy()
-            performance = get_performance(gt_item, recommends)
+            performance = get_performance(gt_item, recommends.tolist())
             hr.update(performance[0])
-            ndcg.update(performance[1])
+            hr2.update(performance[1])
+            ndcg.update(performance[2])
 
             iter_time.update(time.time() - end)
             end = time.time()
@@ -222,8 +236,8 @@ def test(model, test_loader, test_logger, epoch):
                 print(f"{i + 1} Users tested. Iteration time : {iter_time.avg:.5f}/user Data time : {data_time.avg:.5f}/user")
 
     print(
-        f"Epoch : [{epoch + 1}/{args.epoch}] Hit Ratio : {hr.avg:.4f} nDCG : {ndcg.avg:.4f} Test Time : {iter_time.avg:.4f}/user")
-    test_logger.write([epoch, hr.avg, ndcg.avg])
+        f"Epoch : [{epoch + 1}/{args.epoch}] Hit Ratio : {hr.avg:.4f} nDCG : {ndcg.avg:.4f} Hit Ratio 2 : {hr2.avg:.4f} Test Time : {iter_time.avg:.4f}/user")
+    test_logger.write([epoch, hr.avg, hr2.avg, ndcg.avg])
     # experiment.log_metric("Test HR@K", hr.avg, epoch= epoch)
     # experiment.log_metric("Test nDCG@K", ndcg.avg, epoch= epoch)
 
