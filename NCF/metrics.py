@@ -76,7 +76,6 @@ class MetronAtK(object):
         user_pos_item_num_dict, full, top_k = self._user_pos_item_num_dict, self._subjects, self._top_k
         top_k = full[full['rank'] <= top_k]
         test_in_top_k = top_k[top_k['test_item'] == top_k['item']]
-        import pdb;pdb.set_trace()
         test_in_top_k['dcg'] = test_in_top_k['rank'].apply(lambda x: 1 / math.log2(1 + x))
         idcg_list = []
         for i in test_in_top_k['user'].unique():
