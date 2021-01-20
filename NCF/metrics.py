@@ -52,7 +52,16 @@ class MetronAtK(object):
         top_k = full[full['rank'] <= top_k]
         test_in_top_k = top_k[top_k['test_item'] == top_k['item']]
         
-        
-        test_in_top_k['ndcg'] = test_in_top_k['rank'].apply(lambda x: 1 / math.log2(1 + x))
-        test_in_top_k["test_score"] = test_in_top_k["test_score"].apply(lambda x : 1 / (1 + np.exp(-x)))
+        test_in_top_k['dcg'] = test_in_top_k['rank'].apply(lambda x: 1 / math.log2(1 + x))
+        count = list(test_in_top_k.groupby(by=['user'], as_index=False).count()['item'])
+        idcg_list = []
+        for i in count:
+            idcg = 0.0
+            for j in range(i):
+                idcg += np.reciprocal(np.log2(j+2))
+            idcg_list.append(idcg)
+        test_in_top_k = test_in_top_k.groupby(by=['user'], as_index=False).sum()
+        test_in_top_k['idcg'] = idcg_list
+        test_in_top_k['ndcg'] = test_in_top_k['dcg'] * 1.0 / test_in_top_k['idcg']
+
         return test_in_top_k['ndcg'].sum() * 1.0 / full['user'].nunique()
