@@ -46,6 +46,21 @@ class MetronAtK(object):
         top_k = full[full['rank'] <= top_k]
         test_in_top_k = top_k[top_k['test_item'] == top_k['item']]  # golden items hit in the top_K items
         return test_in_top_k['user'].nunique() * 1.0 / full['user'].nunique()
+    
+    def cal_hit_ratio2(self):
+        """Hit Ratio @ top_K"""
+        full, top_k = self._subjects, self._top_k
+        user_pos_item_num_dict = {}
+        for i in full['user'].unique():
+            user_pos_item_num_dict[i] = full[full['user']==i]['test_item'].nunique()
+        top_k = full[full['rank'] <= top_k]
+        test_in_top_k = top_k[top_k['test_item'] == top_k['item']]  # golden items hit in the top_K items
+        test_in_top_k = test_in_top_k.groupby(by=['user'], as_index=False).count()
+        hit_ratio = []
+        for i in test_in_top_k['user']:
+            hit_ratio.append(test_in_top_k[test_in_top_k['user'] == i]['item'].item() / user_pos_item_num_dict[i])
+        test_in_top_k['hit_ratio'] = hit_ratio
+        return test_in_top_k['hit_ratio'].sum() * 1.0 / full['user'].nunique()
  
     def cal_ndcg(self):
         full, top_k = self._subjects, self._top_k
