@@ -13,14 +13,14 @@ Amazon Review(Office) Dataset can be downloaded here<br>
 ```
 {'B01HEFLV4M' : {'itemid': 'B01HEFLV4M',
                 'category': ['Office Products','Office & School Supplies','Desk Accessories & Workspace Organizers','Desk Supplies Holders & Dispensers','Paper Clip Holders'],
-                'description': ['Great for use around the home, office, garage or workroom. Can be attached to fridge doors, magnetic whiteboards or other flat metal surfaces for holding paper notes, reminders, recipes etc.<br>The other side of the handle has a hole so you could if you wished to place it over a nail<br> Each clip with dimension of 50mm (L) x 35mm (H) x 50mm (W); Round magnet base diameter of 27mm (1.06 inch).<br> Box Contains<br> 4 x Magnetic Clips'],
-                'title': 'LJY Magnetic Clip Fridge Paper Clips Holder, Pack of 4',
-                'also_buy': [],
-                'brand': 'LJY',
-                'feature': ['Heavy duty clips with magnet, keeping documents securely in place and damage-free.','Made of rust-resistant nickel-plated steel, sturdy and durable.','Great for use around the home, office, garage or workroom. Can be attached to fridge doors, magnetic whiteboards or other flat metal surfaces for holding paper notes, reminders, recipes etc.','Each clip with dimension of 50mm (L) x 35mm (H) x 50mm (W); Round magnet base diameter of 27mm (1.06 inch).','Package contains 4pcs magnetic clips.'],
-               'also_view': ['B01M03KZV2', 'B06XCN71JV', 'B01CT2SHIS', 'B07DHF75VV'],
-               'price': '',
-               'image_path': './image/office/B01HEFLV4M.png'}
+                 'description': ['Great for use around the home, office, garage or workroom. Can be attached to fridge doors, magnetic whiteboards or other flat metal surfaces for holding paper notes, reminders, recipes etc.<br>The other side of the handle has a hole so you could if you wished to place it over a nail<br> Each clip with dimension of 50mm (L) x 35mm (H) x 50mm (W); Round magnet base diameter of 27mm (1.06 inch).<br> Box Contains<br> 4 x Magnetic Clips'],
+                 'title': 'LJY Magnetic Clip Fridge Paper Clips Holder, Pack of 4',
+                 'also_buy': [],
+                 'brand': 'LJY',
+                 'feature': ['Heavy duty clips with magnet, keeping documents securely in place and damage-free.','Made of rust-resistant nickel-plated steel, sturdy and durable.','Great for use around the home, office, garage or workroom. Can be attached to fridge doors, magnetic whiteboards or other flat metal surfaces for holding paper notes, reminders, recipes etc.','Each clip with dimension of 50mm (L) x 35mm (H) x 50mm (W); Round magnet base diameter of 27mm (1.06 inch).','Package contains 4pcs magnetic clips.'],
+                'also_view': ['B01M03KZV2', 'B06XCN71JV', 'B01CT2SHIS', 'B07DHF75VV'],
+                'price': '',
+                'image_path': './image/office/B01HEFLV4M.png'}
   'B01CT2SHIS' : { ... }
     ...}
 ```
