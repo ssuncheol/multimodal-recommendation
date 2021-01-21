@@ -28,8 +28,6 @@ parser.add_argument('--data_path', default='/daintlab/data/recommend/Movielens-r
                     help='Path to rating data')
 parser.add_argument('--feature_path', default='/daintlab/data/recommend/movielens', type=str,
                     help='Path to feature data')
-parser.add_argument('--dataset', default='amazon', type=str,
-                    help='Path to feature data')
 parser.add_argument('--embed_dim', default=64, type=int,
                     help='Embedding Dimension')
 parser.add_argument('--dropout_rate', default=0.2, type=float,
@@ -60,23 +58,6 @@ args = parser.parse_args()
 
 
 def main():
-    # Set Comet ML
-    # experiment = Experiment("xlgnV9PHcoau26wzSxohP8ToM",
-    #                         project_name="MAML",
-    #                         log_git_metadata=False,
-    #                         log_git_patch=False)
-    # hyperparameters = {
-    #     "dataset" : args.dataset,
-    #     "epoch" : args.epoch,
-    #     "margin" : args.margin,
-    #     "lr" : args.lr,
-    #     "feature_weight" : args.feat_weight,
-    #     "covariance_weight" : args.cov_weight,
-    #     "use_feature" : args.use_feature,
-    #     "feature_type" : args.feature_type
-    # }
-    # experiment.log_parameters(hyperparameters)
-
     # Set save path
     save_path = args.save_path
     if not os.path.exists(save_path):
@@ -88,25 +69,13 @@ def main():
 
     # Load dataset
     print("Loading Dataset")
-    ###
     data_path = os.path.join(args.data_path,args.eval_type)
     feature_path = args.feature_path
     
     train_df, test_df, train_ng_pool, test_negative, num_user, num_item, feature = D.load_data(data_path, feature_path, args.feature_type)
     train_dataset = D.CustomDataset(train_df, feature, negative=train_ng_pool, num_neg=args.num_neg, istrain=True, use_feature=args.use_feature)
     test_dataset = D.CustomDataset(test_df, feature, negative=test_negative, num_neg=None, istrain=False, use_feature=args.use_feature)
-    ###
-    # path = args.data_path
-    # dataset=args.dataset
-    # if dataset=='amazon':
-    #    train_df, test_df, train_ng_pool, test_negative, num_user, num_item, feature = D_a.load_data(path, args.feature_type)
-    #    train_dataset = D_a.CustomDataset_amazon(train_df, feature, negative=train_ng_pool, num_neg=args.num_neg, istrain=True, use_feature=args.use_feature)
-    #    test_dataset = D_a.CustomDataset_amazon(test_df, feature, negative=test_negative, num_neg=None, istrain=False, use_feature=args.use_feature)
-    #elif dataset=='movielens':
-    #    train_df, test_df, train_ng_pool, test_negative, num_user, num_item, feature = D_m.load_data(path, args.feature_type)
-    #    train_dataset = D_m.CustomDataset_movielens(train_df, feature, negative=train_ng_pool, num_neg=args.num_neg, istrain=True, use_feature=args.use_feature)
-    #    test_dataset = D_m.CustomDataset_movielens(test_df, feature, negative=test_negative, num_neg=None, istrain=False, use_feature=args.use_feature)
-    ###
+    
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4,
                               collate_fn=my_collate_trn)
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=8,
@@ -140,15 +109,14 @@ def main():
     # Logger
     train_logger = Logger(f'{save_path}/train.log')
     test_logger = Logger(f'{save_path}/test.log')
+    hit_record_logger = Logger(f'{save_path}/hitrecord.log')
 
     # Train & Eval
     for epoch in range(args.epoch):
-        # with experiment.train():
         train(model, embedding_loss, feature_loss, covariance_loss, optimizer, train_loader, train_logger, epoch)
         # Save and test Model every n epoch
         if (epoch + 1) % args.eval_freq == 0 or epoch == 0:
-            # with experiment.test():
-            test(model, test_loader, test_logger, epoch)
+            test(model, test_loader, test_logger, epoch, hit_record_logger)
             torch.save(model.state_dict(), f"{save_path}/model_{epoch + 1}.pth")
 
 
@@ -190,12 +158,6 @@ def train(model, embedding_loss, feature_loss, covariance_loss, optimizer, train
         iter_time.update(time.time() - end)
         end = time.time()
 
-        # Comet ml
-        # experiment.log_metric("Train total loss", loss.item(), step=i, epoch= epoch)
-        # experiment.log_metric("Train embedding loss", loss_e.item(), step=i, epoch= epoch)
-        # experiment.log_metric("Train feature loss", loss_f.item(), step=i, epoch= epoch)
-        # experiment.log_metric("Train covariance loss", loss_c.item(), step=i, epoch= epoch)
-
         if i % 10 == 0:
             print(f"[{epoch + 1}/{args.epoch}][{i}/{len(train_loader)}] Total loss : {total_loss.avg:.4f} \
                 Embedding loss : {embed_loss.avg:.4f} Feature loss : {feat_loss.avg:.4f} \
@@ -205,7 +167,7 @@ def train(model, embedding_loss, feature_loss, covariance_loss, optimizer, train
                         feat_loss.avg, cov_loss.avg])
 
 
-def test(model, test_loader, test_logger, epoch):
+def test(model, test_loader, test_logger, epoch, hit_record_logger):
     model.eval()
     hr = AverageMeter()
     hr2 = AverageMeter()
@@ -228,9 +190,12 @@ def test(model, test_loader, test_logger, epoch):
             hr.update(performance[0])
             hr2.update(performance[1])
             ndcg.update(performance[2])
-
+            
             iter_time.update(time.time() - end)
             end = time.time()
+            
+            if epoch+1 == args.epoch:
+                hit_record_logger.write([user[0].item(), len(gt_item), performance[0]])
 
             if i % 50 == 0:
                 print(f"{i + 1} Users tested. Iteration time : {iter_time.avg:.5f}/user Data time : {data_time.avg:.5f}/user")
@@ -238,8 +203,7 @@ def test(model, test_loader, test_logger, epoch):
     print(
         f"Epoch : [{epoch + 1}/{args.epoch}] Hit Ratio : {hr.avg:.4f} nDCG : {ndcg.avg:.4f} Hit Ratio 2 : {hr2.avg:.4f} Test Time : {iter_time.avg:.4f}/user")
     test_logger.write([epoch, hr.avg, hr2.avg, ndcg.avg])
-    # experiment.log_metric("Test HR@K", hr.avg, epoch= epoch)
-    # experiment.log_metric("Test nDCG@K", ndcg.avg, epoch= epoch)
+
 
 def my_collate_trn(batch):
     user = [item[0] for item in batch]

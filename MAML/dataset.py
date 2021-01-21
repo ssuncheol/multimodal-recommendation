@@ -27,6 +27,7 @@ def load_data(data_path, feature_path, feature_type):
     num_item = max(train_df["itemID"])+1
 
     print(f"num user : {num_user} num item : {num_item}")
+    #### Load feature data ####
     if feature_path.endswith('movielens'):
         
         with open(os.path.join(feature_path, 'image_feature_vec.pickle'), 'rb') as f:
@@ -62,14 +63,15 @@ def load_data(data_path, feature_path, feature_type):
         for i in range(num_item):
             t_features.append(text_vec[asin_i_dic[i]])
             v_features.append(vis_vec[asin_i_dic[i]])
-
+    #### Load feature data ####
+    #### Choose feature type ####
     if feature_type == "all":
         feature = np.concatenate((t_features, v_features), axis=1)
     elif feature_type == "img":
         feature = np.array(v_features)
     elif feature_type == "txt":
         feature = np.array(t_features)
-
+    
     return train_df, test_df, train_ng_pool, test_negative, num_user, num_item, feature
 
 
