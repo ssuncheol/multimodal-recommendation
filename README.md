@@ -9,7 +9,7 @@ Amazon Review(Office) Dataset can be downloaded here<br>
 - item_meta.json (Item meta data)
 - image.zip (Image of items)
 - text_feature_vec.pickle (Text feature vector)
-
+(rating : 614,263, item : 18,371, user : 101,187)
 #### Sample item_meta.json:
 ```
 {'B01HEFLV4M' : {'itemid': 'B01HEFLV4M',
@@ -36,7 +36,7 @@ Movielens Dataset can be downloaded here<br>
 - item_meta.json (Movie meta data)
 - image.zip (Image of posters, 'movieid.jpg')
 - text_feature_vec.pickle (Text feature vector)
-
+(rating : 991,276, item : 3,659, user : 6,040)
 #### Sample user_meta.json :
 ```
 {'1': {'userid': '1', 'sex': 'F', 'age': '1', 'occupation': '10', 'zip_code': '48067'}
