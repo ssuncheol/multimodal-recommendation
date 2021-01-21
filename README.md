@@ -92,5 +92,5 @@ The following results will be saved in ```<Your save path>```
  * index-info/user_index.csv
              /item_index.csv
 ```
-* Amazon office : [Ratio-split](https://drive.google.com/drive/u/0/folders/1Mis3TiY2883WOzVT8XxyIt_zwrpsuFY4) / [Leave-one-out](https://drive.google.com/drive/u/0/folders/1E22TfRHUgdaXxBfen_a_MLVOKAkuzbzB) / [index_info](https://drive.google.com/drive/u/0/folders/1iipM251T8wdvC3chFZV795xzwc9a2xgT)
-* Movielens : [Ratio-split](https://drive.google.com/drive/u/0/folders/19ZRPasxSeUVFGuAUv4EXmYgKXbZdYlCg) / [Leave-one-out](https://drive.google.com/drive/u/0/folders/1wxmfrliK1rpeZKME6UT9_JCHP3fMfUGj) / [index-info](https://drive.google.com/drive/u/0/folders/1exTuwPmmCeIUv_TwA-Q5oDVPdrUwDyeN)
+* Amazon office : [Ratio-split](https://drive.google.com/drive/u/0/folders/1wmqxv6-Hr4noa-2mhWNjukT796yuqbOy) / [Leave-one-out](https://drive.google.com/drive/u/0/folders/1l9XtVJikdtIIC-7Db9zI78oCrl4Z0OZ3) / [index_info](https://drive.google.com/drive/u/0/folders/1iipM251T8wdvC3chFZV795xzwc9a2xgT)
+* Movielens : [Ratio-split](https://drive.google.com/drive/u/0/folders/19ZRPasxSeUVFGuAUv4EXmYgKXbZdYlCg) / [Leave-one-out](https://drive.google.com/drive/u/0/folders/1wxmfrliK1rpeZKME6UT9_JCHP3fMfUGj) / [index-info]https://drive.google.com/drive/u/0/folders/1exTuwPmmCeIUv_TwA-Q5oDVPdrUwDyeN)
