@@ -11,7 +11,7 @@ class Engine(object):
         #Evaluate model
         a=time.time()
         if kwargs['eval'] == 'ratio-split':
-            if (epoch_id + 1) % 10 != 0:
+            if (epoch_id + 1) % kwargs['interval'] != 0:
                 return 0, 0, 0
         model.eval()
  
