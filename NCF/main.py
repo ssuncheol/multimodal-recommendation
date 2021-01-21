@@ -287,7 +287,7 @@ def main():
             b=time.time()
             print('test:' ,b-a) 
         if args.eval == 'ratio-split':
-            if (epoch + 1) % 10 == 0: 
+            if (epoch + 1) % args.interval == 0: 
                 wandb.log({"epoch" : epoch,
                             "HR" : hit_ratio,
                             "HR2" : hit_ratio2,
