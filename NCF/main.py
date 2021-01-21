@@ -25,6 +25,10 @@ def main():
                 type=str,
                 default="amazon",
                 help='dataset')
+    parser.add_argument('--path',
+                type=str,
+                default='/daintlab/home/tmddnjs3467/workspace',
+                help='path')
     parser.add_argument('--image',
                 type=bool,
                 default=False,
@@ -73,6 +77,10 @@ def main():
                 type=str,
                 default='ratio-split',
                 help='protocol')
+    parser.add_argument('--interval',
+                type=int,
+                default=1,
+                help='evaluation interval')
     args = parser.parse_args()
     wandb.config.update(args)
     
@@ -83,12 +91,12 @@ def main():
 
     if args.data == "amazon":
 
-        df_train_p = pd.read_feather("/daintlab/home/tmddnjs3467/workspace/Amazon-office-raw/%s/train_positive.ftr" % args.eval)
-        df_train_n = pd.read_feather("/daintlab/home/tmddnjs3467/workspace/Amazon-office-raw/%s/train_negative.ftr" % args.eval)
-        df_test_p = pd.read_feather("/daintlab/home/tmddnjs3467/workspace/Amazon-office-raw/%s/test_positive.ftr" % args.eval)
-        df_test_n = pd.read_feather("/daintlab/home/tmddnjs3467/workspace/Amazon-office-raw/%s/test_negative.ftr" % args.eval)
-        user_index_info = pd.read_csv("/daintlab/home/tmddnjs3467/workspace/Amazon-office-raw/index-info/user_index.csv")
-        item_index_info = pd.read_csv("/daintlab/home/tmddnjs3467/workspace/Amazon-office-raw/index-info/item_index.csv")
+        df_train_p = pd.read_feather("%s/Amazon-office-raw/%s/train_positive.ftr" % (args.path, args.eval))
+        df_train_n = pd.read_feather("%s/Amazon-office-raw/%s/train_negative.ftr" % (args.path, args.eval))
+        df_test_p = pd.read_feather("%s/Amazon-office-raw/%s/test_positive.ftr" % (args.path, args.eval))
+        df_test_n = pd.read_feather("%s/Amazon-office-raw/%s/test_negative.ftr" % (args.path, args.eval))
+        user_index_info = pd.read_csv("%s/Amazon-office-raw/index-info/user_index.csv" % args.path)
+        item_index_info = pd.read_csv("%s/Amazon-office-raw/index-info/item_index.csv" % args.path)
         num_user = 4905
         num_item = 2420
 
@@ -106,14 +114,14 @@ def main():
         
     elif args.data == "movie":
 
-        df_train_p = pd.read_feather("/daintlab/home/tmddnjs3467/workspace/Movielens-raw/%s/train_positive.ftr" % args.eval)
-        df_train_n = pd.read_feather("/daintlab/home/tmddnjs3467/workspace/Movielens-raw/%s/train_negative.ftr" % args.eval)
-        df_test_p = pd.read_feather("/daintlab/home/tmddnjs3467/workspace/Movielens-raw/%s/test_positive.ftr" % args.eval)
-        df_test_n = pd.read_feather("/daintlab/home/tmddnjs3467/workspace/Movielens-raw/%s/test_negative.ftr" % args.eval)
-        img_feature = pd.read_pickle('/daintlab/home/tmddnjs3467/workspace/movielense/image_feature_vec.pickle')
-        txt_feature = pd.read_pickle('/daintlab/home/tmddnjs3467/workspace/movielense/text_feature_vec.pickle')
-        user_index_info = pd.read_csv("/daintlab/home/tmddnjs3467/workspace/Movielens-raw/index-info/user_index.csv")
-        item_index_info = pd.read_csv("/daintlab/home/tmddnjs3467/workspace/Movielens-raw/index-info/item_index.csv")
+        df_train_p = pd.read_feather("%s/Movielens-raw/%s/train_positive.ftr" % (args.path, args.eval))
+        df_train_n = pd.read_feather("%s/Movielens-raw/%s/train_negative.ftr" % (args.path, args.eval))
+        df_test_p = pd.read_feather("%s/Movielens-raw/%s/test_positive.ftr" % (args.path, args.eval))
+        df_test_n = pd.read_feather("%s/Movielens-raw/%s/test_negative.ftr" % (args.path, args.eval))
+        img_feature = pd.read_pickle('%s/movielense/image_feature_vec.pickle' % args.path)
+        txt_feature = pd.read_pickle('%s/movielense/text_feature_vec.pickle' % args.path)
+        user_index_info = pd.read_csv("%s/Movielens-raw/index-info/user_index.csv" % args.path)
+        item_index_info = pd.read_csv("%s/Movielens-raw/index-info/item_index.csv" % args.path)
         
         ## reindex 때문에 feature dict 다시 만들기 위한 과정
         user_index_dict = {}
@@ -237,20 +245,20 @@ def main():
             if (args.image == True) & (args.text == True):
                 test_loader = evaluate_data.instance_a_test_loader(len(test_user) // 100, image=img_dict, text=txt_dict)
                 test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user) // 100, image=img_dict, text=txt_dict) 
-                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, image=img_dict, text=txt_dict, eval=args.eval)
+                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, image=img_dict, text=txt_dict, eval=args.eval, interval=args.interval)
             elif args.image == True:
                 test_loader = evaluate_data.instance_a_test_loader(len(test_user) // 100, image=img_dict)
                 test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user) // 100, image=img_dict) 
-                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, image=img_dict, eval=args.eval)
+                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, image=img_dict, eval=args.eval, interval=args.interval)
             elif args.text == True:
                 test_loader = evaluate_data.instance_a_test_loader(len(test_user) // 100, text=txt_dict)
                 test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user) // 100, text=txt_dict) 
-                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, text=txt_dict, eval=args.eval)                
+                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, text=txt_dict, eval=args.eval, interval=args.interval)                
             else:
                 a=time.time() 
                 test_loader = evaluate_data.instance_a_test_loader(len(test_user) // 100)
                 test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user) // 100) 
-                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, eval=args.eval)  
+                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, eval=args.eval, interval=args.interval)  
             b=time.time()
             print('test:', b-a) 
                 
@@ -262,20 +270,20 @@ def main():
             if (args.image == True) & (args.text == True):
                 test_loader = evaluate_data.instance_a_test_loader(len(test_user) // 100, image=img_dict, text=txt_dict)
                 test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user) // 100, image=img_dict, text=txt_dict) 
-                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, image=img_dict, text=txt_dict, eval=args.eval)
+                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, image=img_dict, text=txt_dict, eval=args.eval, interval=args.interval)
             elif args.image == True:
                 test_loader = evaluate_data.instance_a_test_loader(len(test_user) // 100, image=img_dict)
                 test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user) // 100, image=img_dict) 
-                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, image=img_dict, eval=args.eval)
+                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, image=img_dict, eval=args.eval, interval=args.interval)
             elif args.text == True:
                 test_loader = evaluate_data.instance_a_test_loader(len(test_user) // 100, text=txt_dict)
                 test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user) // 100, text=txt_dict) 
-                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, text=txt_dict, eval=args.eval)                
+                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, text=txt_dict, eval=args.eval, interval=args.interval)                
             else:
                 a=time.time() 
                 test_loader = evaluate_data.instance_a_test_loader(len(test_user) // 100)
                 test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user) // 100) 
-                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, eval=args.eval)  
+                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, eval=args.eval, interval=args.interval)  
             b=time.time()
             print('test:' ,b-a) 
         if args.eval == 'ratio-split':
@@ -288,7 +296,6 @@ def main():
         else:
             wandb.log({"epoch" : epoch,
                         "HR" : hit_ratio,
-                        "HR2" : hit_ratio2,
                         "NDCG" : ndcg})
             N.append(ndcg)
 
