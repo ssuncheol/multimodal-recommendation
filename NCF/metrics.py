@@ -68,7 +68,7 @@ class MetronAtK(object):
         test_in_top_k = test_in_top_k.groupby(by=['user'], as_index=False).count()
         hit_ratio = []
         for i in test_in_top_k['user']:
-            hit_ratio.append(test_in_top_k[test_in_top_k['user'] == i]['item'].item() / min(user_pos_item_num_dict[i], 10))
+            hit_ratio.append(test_in_top_k[test_in_top_k['user'] == i]['item'].item() / min(user_pos_item_num_dict[i], self._top_k))
         test_in_top_k['hit_ratio'] = hit_ratio
         return test_in_top_k['hit_ratio'].sum() * 1.0 / full['user'].nunique()
  
@@ -80,7 +80,7 @@ class MetronAtK(object):
         idcg_list = []
         for i in test_in_top_k['user'].unique():
             idcg = 0.0
-            for j in range(min(user_pos_item_num_dict[i], 10)):
+            for j in range(min(user_pos_item_num_dict[i], self._top_k)):
                 idcg += np.reciprocal(np.log2(j+2))
             idcg_list.append(idcg)
         test_in_top_k = test_in_top_k.groupby(by=['user'], as_index=False).sum()
