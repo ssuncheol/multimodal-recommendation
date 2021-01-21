@@ -20,6 +20,7 @@ Pytorch implementation of [Neural Collaborative Filtering](https://arxiv.org/abs
 | Argument | Type | Description | Default |
 |:---:|:---:|:---:|:---:|
 |data|str|dataset|amazon|
+|path|str|path|/daintlab/home/tmddnjs3467/workspace|
 |image|bool|image feature|False|
 |text|bool|text feature|False|
 |optim|str|Optimizer|adam|
@@ -32,6 +33,7 @@ Pytorch implementation of [Neural Collaborative Filtering](https://arxiv.org/abs
 |l2|float|L2 Regularization|0|
 |gpu|str|Name of Using gpu|0|
 |eval|str|evaluation protocol|ratio-split|
+|interval|int|evaluation interval if eval is ratio-split|1|
 
 
 ## Installation 
