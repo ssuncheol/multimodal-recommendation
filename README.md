@@ -8,6 +8,7 @@ Amazon Review(Office) Dataset can be downloaded here<br>
 - ratingse.csv (Rating data, userid::itemid::rating::timestamp)
 - item_meta.json (Item meta data)
 - image.zip (Image of items)
+- text_feature_vec.pickle (Text feature vector)
 
 #### Sample item_meta.json:
 ```
@@ -34,6 +35,7 @@ Movielens Dataset can be downloaded here<br>
 - user_meta.json (User meta data)
 - item_meta.json (Movie meta data)
 - image.zip (Image of posters, 'movieid.jpg')
+- text_feature_vec.pickle (Text feature vector)
 
 #### Sample user_meta.json :
 ```
