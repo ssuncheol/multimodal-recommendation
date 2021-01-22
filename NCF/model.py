@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class NeuralCF(nn.Module):
-    def __init__(self, num_users, num_items, embedding_size, num_layers, **kwargs):
+    def __init__(self, num_users, num_items, embedding_size, num_layers,dropout **kwargs):
         super(NeuralCF,self).__init__()
     
         self.user_embedding_gmf = nn.Embedding(num_users, embedding_size)
@@ -26,18 +26,21 @@ class NeuralCF(nn.Module):
                 input_size = 4 * embedding_size // (2 ** i)
                 MLP_modules.append(nn.Linear(input_size, input_size // 2))
                 MLP_modules.append(nn.ReLU())
+                MLP_modules.append(nn.Dropout(p=dropout))
         elif ('image' in kwargs.keys()) | ('text' in kwargs.keys()):
             print("MLP FEATURE 1")
             for i in range(num_layers):
                 input_size = 3 * embedding_size // (2 ** i)
                 MLP_modules.append(nn.Linear(input_size, input_size // 2))
                 MLP_modules.append(nn.ReLU())
+                MLP_modules.append(nn.Dropout(p=dropout))
         else:
             print("MLP FEATURE 0")
             for i in range(num_layers):
                 input_size = 2 * embedding_size // (2 ** i)  
                 MLP_modules.append(nn.Linear(input_size, input_size//2))
                 MLP_modules.append(nn.ReLU())
+                MLP_modules.append(nn.Dropout(p=dropout))
 
         self.MLP_layers =nn.Sequential(*MLP_modules)
         

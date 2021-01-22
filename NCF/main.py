@@ -19,7 +19,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 def main():
-    wandb.init(project="Real Total NCF")
+    #wandb.init(project="Real Total NCF")
     parser = argparse.ArgumentParser()
     parser.add_argument('--data',
                 type=str,
@@ -48,7 +48,11 @@ def main():
     parser.add_argument('--epochs',
                 type=int,
                 default=50,
-                help='learning rate')
+                help='train epochs')
+    parser.add_argument('--drop_rate',
+                type=float,
+                default=0.0,
+                help= 'dropout rate')
     parser.add_argument('--batch_size',
                 type=int,
                 default=1024,
@@ -82,7 +86,7 @@ def main():
                 default=1,
                 help='evaluation interval')
     args = parser.parse_args()
-    wandb.config.update(args)
+    #wandb.config.update(args)
     
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
     
@@ -100,7 +104,10 @@ def main():
         txt_feature = pd.read_pickle('%s/Amazon-office-raw/text_feature_vec.pickle' % args.path)
         num_user = 101187
         num_item = 18371
-        
+        #import pdb; pdb.set_trace()
+        user_index_dict={}
+        item_index_dict={}
+        txt_dict={}
         for i, j in zip(user_index_info['useridx'], user_index_info['userid']):
             user_index_dict[i] = j
         for i, j in zip(item_index_info['itemidx'], item_index_info['itemid']):
@@ -161,25 +168,25 @@ def main():
     if (args.image == True) & (args.text == True):
         print("IMAGE TEXT MODEL")
         model = NeuralCF(num_users=num_user, num_items=num_item, 
-                        embedding_size=args.latent_dim_mf, 
+                        embedding_size=args.latent_dim_mf, dropout=args.drop_rate,
                         num_layers=args.num_layers, image=image_shape, text=text_shape)    
     
     elif args.image == True:
         print("IMAGE MODEL")
         model = NeuralCF(num_users=num_user, num_items=num_item, 
-                        embedding_size=args.latent_dim_mf, 
+                        embedding_size=args.latent_dim_mf, dropout=args.drop_rate,
                         num_layers=args.num_layers, image=image_shape)  
     
     elif args.text == True:
         print("TEXT MODEL")
         model = NeuralCF(num_users=num_user, num_items=num_item, 
-                        embedding_size=args.latent_dim_mf, 
+                        embedding_size=args.latent_dim_mf, dropout=args.drop_rate,
                         num_layers=args.num_layers, text=text_shape)  
 
     else:
         print("MODEL")
         model = NeuralCF(num_users=num_user, num_items=num_item, 
-                        embedding_size=args.latent_dim_mf, 
+                        embedding_size=args.latent_dim_mf, dropout=args.drop_rate,
                         num_layers=args.num_layers)
     
     
@@ -190,7 +197,7 @@ def main():
     optim = optimizer(optim=args.optim, lr=args.lr, model=model, weight_decay=args.l2)
     criterion = nn.BCEWithLogitsLoss()
     
-    wandb.watch(model)
+    #wandb.watch(model)
 
     N = []
     for epoch in range(args.epochs):
@@ -297,15 +304,15 @@ def main():
             print('test:' ,b-a) 
         if args.eval == 'ratio-split':
             if (epoch + 1) % args.interval == 0: 
-                wandb.log({"epoch" : epoch,
-                            "HR" : hit_ratio,
-                            "HR2" : hit_ratio2,
-                            "NDCG" : ndcg})
+                #wandb.log({"epoch" : epoch,
+                #            "HR" : hit_ratio,
+                #            "HR2" : hit_ratio2,
+                #            "NDCG" : ndcg})
                 N.append(ndcg)
         else:
-            wandb.log({"epoch" : epoch,
-                        "HR" : hit_ratio,
-                        "NDCG" : ndcg})
+            #wandb.log({"epoch" : epoch,
+            #            "HR" : hit_ratio,
+            #            "NDCG" : ndcg})
             N.append(ndcg)
 
 if __name__ == '__main__':
