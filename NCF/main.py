@@ -97,9 +97,18 @@ def main():
         df_test_n = pd.read_feather("%s/Amazon-office-raw/%s/test_negative.ftr" % (args.path, args.eval))
         user_index_info = pd.read_csv("%s/Amazon-office-raw/index-info/user_index.csv" % args.path)
         item_index_info = pd.read_csv("%s/Amazon-office-raw/index-info/item_index.csv" % args.path)
-        num_user = 4905
-        num_item = 2420
-
+        txt_feature = pd.read_pickle('%s/Amazon-office-raw/text_feature_vec.pickle' % args.path)
+        num_user = 101187
+        num_item = 18371
+        
+        for i, j in zip(user_index_info['useridx'], user_index_info['userid']):
+            user_index_dict[i] = j
+        for i, j in zip(item_index_info['itemidx'], item_index_info['itemid']):
+            item_index_dict[i] = j
+        for i in item_index_dict.keys():
+            # img_dict[i] = img_feature[item_index_dict[i]] 
+            txt_dict[i] = txt_feature[item_index_dict[i]]
+        
         # ##feature들 있을 때 쓰는 코드
         # itemid_asin_dict = dict(zip(total["itemID"], total["asin"]))
         # userid_reviewerID_dict = dict(zip(total["userID"], total["reviewerID"]))
