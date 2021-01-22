@@ -19,7 +19,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 def main():
-    #wandb.init(project="Real Total NCF")
+    wandb.init(project="Real Total NCF")
     parser = argparse.ArgumentParser()
     parser.add_argument('--data',
                 type=str,
@@ -86,7 +86,7 @@ def main():
                 default=1,
                 help='evaluation interval')
     args = parser.parse_args()
-    #wandb.config.update(args)
+    wandb.config.update(args)
     
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
     
@@ -198,7 +198,7 @@ def main():
     optim = optimizer(optim=args.optim, lr=args.lr, model=model, weight_decay=args.l2)
     criterion = nn.BCEWithLogitsLoss()
     
-    #wandb.watch(model)
+    wandb.watch(model)
 
     N = []
     for epoch in range(args.epochs):
@@ -305,15 +305,15 @@ def main():
             print('test:' ,b-a) 
         if args.eval == 'ratio-split':
             if (epoch + 1) % args.interval == 0: 
-                #wandb.log({"epoch" : epoch,
-                #            "HR" : hit_ratio,
-                #            "HR2" : hit_ratio2,
-                #            "NDCG" : ndcg})
+                wandb.log({"epoch" : epoch,
+                           "HR" : hit_ratio,
+                           "HR2" : hit_ratio2,
+                           "NDCG" : ndcg})
                 N.append(ndcg)
         else:
-            #wandb.log({"epoch" : epoch,
-            #            "HR" : hit_ratio,
-            #            "NDCG" : ndcg})
+            wandb.log({"epoch" : epoch,
+                       "HR" : hit_ratio,
+                       "NDCG" : ndcg})
             N.append(ndcg)
 
 if __name__ == '__main__':
