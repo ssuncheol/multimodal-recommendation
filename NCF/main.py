@@ -104,10 +104,11 @@ def main():
         txt_feature = pd.read_pickle('%s/Amazon-office-raw/text_feature_vec.pickle' % args.path)
         num_user = 101187
         num_item = 18371
-        
+
         user_index_dict={}
         item_index_dict={}
         txt_dict={}
+        
         for i, j in zip(user_index_info['useridx'], user_index_info['userid']):
             user_index_dict[i] = j
         for i, j in zip(item_index_info['itemidx'], item_index_info['itemid']):
