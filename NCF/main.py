@@ -104,7 +104,6 @@ def main():
         txt_feature = pd.read_pickle('%s/Amazon-office-raw/text_feature_vec.pickle' % args.path)
         num_user = 101187
         num_item = 18371
-        #import pdb; pdb.set_trace()
         user_index_dict={}
         item_index_dict={}
         txt_dict={}
