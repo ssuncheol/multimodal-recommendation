@@ -292,10 +292,11 @@ class ResNet(nn.Module):
         out = self.relu(self.bn1(self.conv1(x)))
         out = self.layer1(out)
         out = self.layer2(out)
-        penultimate = self.layer3(out)
-        out = self.avgpool(penultimate)
-        out = out.view(out.size(0), -1)
-        y = self.fc(out)
+        out = self.layer3(out)
+        out = self.layer4(out)
+        out = self.avgpool(out)
+        penultimate = out.view(out.size(0), -1)
+        y = self.fc(penultimate)
 
         return y, penultimate
 
