@@ -10,7 +10,7 @@ Amazon Review(Office) Dataset can be downloaded here<br>
 - image.zip (Image of items)
 - text_feature_vec.pickle (Text feature vector)
 
-(rating : 614,263, item : 18,371, user : 101,187)
+(rating : 418,400, item : 18,316, user : 54,084)
 #### Sample item_meta.json:
 ```
 {'B01HEFLV4M' : {'itemid': 'B01HEFLV4M',
