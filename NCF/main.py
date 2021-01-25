@@ -2,24 +2,58 @@ import os
 import pandas as pd
 import numpy as np
 import wandb
-from gensim.models.doc2vec import Doc2Vec
 import torch
 import torch.nn as nn
 import argparse
 import time
 import random
-from sklearn.preprocessing import LabelEncoder 
-from dataloader import Make_Dataset, SampleGenerator, testGenerator
+from dataloader import Make_Dataset, SampleGenerator, UserItemtestDataset
 from utils import optimizer
 from model import NeuralCF
 from evaluate import Engine
-from metrics import MetronAtK
+from torch.utils.data import DataLoader
 
 import warnings
 warnings.filterwarnings("ignore")
 
+def my_collate_tst_2(batch):
+    user = [items[0] for items in batch]
+    user = torch.LongTensor(user)
+    item = [items[1] for items in batch]
+    item = torch.LongTensor(item)
+    image = [items[2] for items in batch]
+    image = torch.Tensor(image)
+    text = [items[3] for items in batch]
+    text = torch.Tensor(text)
+    label = [items[4] for items in batch]
+    label = torch.Tensor(label)
+    
+    return [user, item, image, text, label]
+
+def my_collate_tst_1(batch):
+    user = [items[0] for items in batch]
+    user = torch.LongTensor(user)
+    item = [items[1] for items in batch]
+    item = torch.LongTensor(item)
+    feature = [items[2] for items in batch]
+    feature = torch.Tensor(feature)
+    label = [items[3] for items in batch]
+    label = torch.Tensor(label)
+
+    return [user, item, feature, label]
+
+def my_collate_tst_0(batch):
+    user = [items[0] for items in batch]
+    user = torch.LongTensor(user)
+    item = [items[1] for items in batch]
+    item = torch.LongTensor(item)
+    label = [items[2] for items in batch]
+    label = torch.Tensor(label)
+    
+    return [user, item, label]
+
 def main():
-    wandb.init(project="Real Total NCF")
+    wandb.init(project="amazon leave one out")
     parser = argparse.ArgumentParser()
     parser.add_argument('--data',
                 type=str,
@@ -29,6 +63,10 @@ def main():
                 type=str,
                 default='/daintlab/home/tmddnjs3467/workspace',
                 help='path')
+    parser.add_argument('--top_k',
+                type=int,
+                default=10,
+                help='top_k')
     parser.add_argument('--image',
                 type=bool,
                 default=False,
@@ -48,7 +86,7 @@ def main():
     parser.add_argument('--epochs',
                 type=int,
                 default=50,
-                help='train epochs')
+                help='learning rate')
     parser.add_argument('--drop_rate',
                 type=float,
                 default=0.0,
@@ -101,33 +139,25 @@ def main():
         df_test_n = pd.read_feather("%s/Amazon-office-raw/%s/test_negative.ftr" % (args.path, args.eval))
         user_index_info = pd.read_csv("%s/Amazon-office-raw/index-info/user_index.csv" % args.path)
         item_index_info = pd.read_csv("%s/Amazon-office-raw/index-info/item_index.csv" % args.path)
+        img_feature = pd.read_pickle('%s/Amazon-office-raw/image_feature_vec.pickle' % args.path)
         txt_feature = pd.read_pickle('%s/Amazon-office-raw/text_feature_vec.pickle' % args.path)
-        num_user = 101187
-        num_item = 18371
-
-        user_index_dict={}
-        item_index_dict={}
-        txt_dict={}
+        num_user = 54084
+        num_item = 18316
         
-        for i, j in zip(user_index_info['useridx'], user_index_info['userid']):
-            user_index_dict[i] = j
+        ## reindex 때문에 feature dict 다시 만들기 위한 과정
+        user_index_dict = {}
+        item_index_dict = {}
+        img_dict = {}
+        txt_dict = {}
+        # for i, j in zip(user_index_info['useridx'], user_index_info['userid']):
+        #     user_index_dict[i] = j
         for i, j in zip(item_index_info['itemidx'], item_index_info['itemid']):
             item_index_dict[i] = j
         for i in item_index_dict.keys():
-            # img_dict[i] = img_feature[item_index_dict[i]] 
+            img_dict[i] = img_feature[item_index_dict[i]] 
             txt_dict[i] = txt_feature[item_index_dict[i]]
-        
-        # ##feature들 있을 때 쓰는 코드
-        # itemid_asin_dict = dict(zip(total["itemID"], total["asin"]))
-        # userid_reviewerID_dict = dict(zip(total["userID"], total["reviewerID"]))
-        # img_dict = {}
-        # txt_dict = {}
-        # for i in list(itemid_asin_dict.keys()):
-        #     img_dict[i] = image_feature[itemid_asin_dict[i]]
-        # for j in list(userid_reviewerID_dict.keys()):
-        #     txt_dict[j] = text_feature.infer_vector([userid_reviewerID_dict[j]])
-        # image_shape = 4096
-        # text_shape = 512
+        image_shape = 512
+        text_shape = 300
         
     elif args.data == "movie":
 
@@ -145,8 +175,8 @@ def main():
         item_index_dict = {}
         img_dict = {}
         txt_dict = {}
-        for i, j in zip(user_index_info['useridx'], user_index_info['userid']):
-            user_index_dict[i] = j
+        # for i, j in zip(user_index_info['useridx'], user_index_info['userid']):
+        #     user_index_dict[i] = j
         for i, j in zip(item_index_info['itemidx'], item_index_info['itemid']):
             item_index_dict[i] = j
         for i in item_index_dict.keys():
@@ -163,8 +193,8 @@ def main():
 
     MD = Make_Dataset(df_train_p, df_train_n, df_test_p, df_test_n)
     user, item, rating = MD.trainset
-    test_user, test_item, test_negative_user, test_negative_item = MD.evaluate_data
-    
+    eval_dataset = MD.evaluate_data
+                    
     #NCF model
     if (args.image == True) & (args.text == True):
         print("IMAGE TEXT MODEL")
@@ -189,7 +219,6 @@ def main():
         model = NeuralCF(num_users=num_user, num_items=num_item, 
                         embedding_size=args.latent_dim_mf, dropout=args.drop_rate,
                         num_layers=args.num_layers)
-    
     
     model = nn.DataParallel(model)
     model = model.cuda()
@@ -218,13 +247,9 @@ def main():
             train_loader = sample.instance_a_train_loader(args.batch_size, text=txt_dict)
         else :                
             train_loader = sample.instance_a_train_loader(args.batch_size)
-            
-            
-        
         
         print("Train Loader 생성 완료")
         for batch_id, batch in enumerate(train_loader):
-            #import pdb; pdb.set_trace()
             optim.zero_grad()
             if (args.image == True) & (args.text == True):
                 users, items, ratings, image, text = batch[0], batch[1], batch[2], batch[3], batch[4]             
@@ -253,68 +278,62 @@ def main():
         t2 = time.time()
         print("train : ", t2 - t1) 
 
-        engine = Engine()
+        engine = Engine(args.top_k)
         if args.data == "amazon":
-            #if args.feature == True:
-            a=time.time() 
-            evaluate_data = testGenerator(test_user, test_item)
-            evaluate_data_neg = testGenerator(test_negative_user, test_negative_item)
-            if (args.image == True) & (args.text == True):
-                test_loader = evaluate_data.instance_a_test_loader(len(test_user) // 100, image=img_dict, text=txt_dict)
-                test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user) // 100, image=img_dict, text=txt_dict) 
-                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, image=img_dict, text=txt_dict, eval=args.eval, interval=args.interval)
+            a=time.time()
+            if (args.image == True) & (args.text == True):            
+                test_dataset = UserItemtestDataset(eval_dataset, image=img_dict, text=txt_dict)
+                test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=8,
+                              collate_fn=my_collate_tst_2, pin_memory =True)
+                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, image=img_dict, text=txt_dict, eval=args.eval, interval=args.interval)
             elif args.image == True:
-                test_loader = evaluate_data.instance_a_test_loader(len(test_user) // 100, image=img_dict)
-                test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user) // 100, image=img_dict) 
-                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, image=img_dict, eval=args.eval, interval=args.interval)
+                test_dataset = UserItemtestDataset(eval_dataset, image=img_dict)
+                test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=8,
+                              collate_fn=my_collate_tst_1, pin_memory =True)
+                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, image=img_dict, eval=args.eval, interval=args.interval)
             elif args.text == True:
-                test_loader = evaluate_data.instance_a_test_loader(len(test_user) // 100, text=txt_dict)
-                test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user) // 100, text=txt_dict) 
-                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, text=txt_dict, eval=args.eval, interval=args.interval)                
+                test_dataset = UserItemtestDataset(eval_dataset, text=txt_dict)
+                test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=8,
+                              collate_fn=my_collate_tst_1, pin_memory =True)
+                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, text=txt_dict, eval=args.eval, interval=args.interval)                
             else:
-                a=time.time() 
-                test_loader = evaluate_data.instance_a_test_loader(len(test_user) // 100)
-                test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user) // 100) 
-                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, eval=args.eval, interval=args.interval)  
+                test_dataset = UserItemtestDataset(eval_dataset)
+                test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=8,
+                              collate_fn=my_collate_tst_0, pin_memory =True)
+                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, eval=args.eval, interval=args.interval)  
             b=time.time()
             print('test:', b-a) 
-                
 
         else:
             a=time.time() 
-            evaluate_data = testGenerator(test_user, test_item)
-            evaluate_data_neg = testGenerator(test_negative_user, test_negative_item)
-            if (args.image == True) & (args.text == True):
-                test_loader = evaluate_data.instance_a_test_loader(len(test_user) // 100, image=img_dict, text=txt_dict)
-                test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user) // 100, image=img_dict, text=txt_dict) 
-                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, image=img_dict, text=txt_dict, eval=args.eval, interval=args.interval)
+            if (args.image == True) & (args.text == True):            
+                test_dataset = UserItemtestDataset(eval_dataset, image=img_dict, text=txt_dict)
+                test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=8,
+                              collate_fn=my_collate_tst_2, pin_memory =True)
+                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, image=img_dict, text=txt_dict, eval=args.eval, interval=args.interval)
             elif args.image == True:
-                test_loader = evaluate_data.instance_a_test_loader(len(test_user) // 100, image=img_dict)
-                test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user) // 100, image=img_dict) 
-                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, image=img_dict, eval=args.eval, interval=args.interval)
+                test_dataset = UserItemtestDataset(eval_dataset, image=img_dict)
+                test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=8,
+                              collate_fn=my_collate_tst_1, pin_memory =True)
+                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, image=img_dict, eval=args.eval, interval=args.interval)
             elif args.text == True:
-                test_loader = evaluate_data.instance_a_test_loader(len(test_user) // 100, text=txt_dict)
-                test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user) // 100, text=txt_dict) 
-                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, text=txt_dict, eval=args.eval, interval=args.interval)                
+                test_dataset = UserItemtestDataset(eval_dataset, text=txt_dict)
+                test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=8,
+                              collate_fn=my_collate_tst_1, pin_memory =True)
+                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, text=txt_dict, eval=args.eval, interval=args.interval)                
             else:
-                a=time.time() 
-                test_loader = evaluate_data.instance_a_test_loader(len(test_user) // 100)
-                test_negative_loader = evaluate_data_neg.instance_a_test_loader(len(test_negative_user) // 100) 
-                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, test_negative_loader, epoch_id=epoch, eval=args.eval, interval=args.interval)  
+                test_dataset = UserItemtestDataset(eval_dataset)
+                test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=8,
+                              collate_fn=my_collate_tst_0, pin_memory =True)
+                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, eval=args.eval, interval=args.interval)  
             b=time.time()
             print('test:' ,b-a) 
-        if args.eval == 'ratio-split':
-            if (epoch + 1) % args.interval == 0: 
-                wandb.log({"epoch" : epoch,
-                           "HR" : hit_ratio,
-                           "HR2" : hit_ratio2,
-                           "NDCG" : ndcg})
-                N.append(ndcg)
-        else:
+        
+        if (epoch + 1) % args.interval == 0: 
             wandb.log({"epoch" : epoch,
-                       "HR" : hit_ratio,
-                       "NDCG" : ndcg})
-            N.append(ndcg)
+                        "HR" : hit_ratio,
+                        "HR2" : hit_ratio2,
+                        "NDCG" : ndcg})
 
 if __name__ == '__main__':
     main()
