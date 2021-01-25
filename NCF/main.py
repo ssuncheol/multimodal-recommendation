@@ -121,7 +121,7 @@ def main():
                 help='protocol')
     parser.add_argument('--interval',
                 type=int,
-                default=1,
+                default=10,
                 help='evaluation interval')
     args = parser.parse_args()
     wandb.config.update(args)
