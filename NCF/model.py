@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class NeuralCF(nn.Module):
-    def __init__(self, num_users, num_items, embedding_size, num_layers,dropout **kwargs):
+    def __init__(self, num_users, num_items, embedding_size, dropout, num_layers, **kwargs):
         super(NeuralCF,self).__init__()
     
         self.user_embedding_gmf = nn.Embedding(num_users, embedding_size)
