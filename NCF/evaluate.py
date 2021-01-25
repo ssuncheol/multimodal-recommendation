@@ -1,108 +1,64 @@
 import torch
 import time
-from metrics import MetronAtK
-from itertools import cycle
+from metric import get_performance
+import numpy as np
 
 class Engine(object):
-    def __init__(self):
-        self._metron = MetronAtK(top_k=10)
+    def __init__(self, top_k):
+        self.top_k = top_k
         
-    def evaluate(self, model, test_loader, test_negative_loader, epoch_id, **kwargs):
+    def evaluate(self, model, test_loader, epoch_id, **kwargs):
         #Evaluate model
         a=time.time()
-        if kwargs['eval'] == 'ratio-split':
-            if (epoch_id + 1) % kwargs['interval'] != 0:
-                return 0, 0, 0
+        if (epoch_id + 1) % kwargs['interval'] != 0:
+            return 0, 0, 0
+        
         model.eval()
- 
-        t_test_users=[]
-        t_negative_users=[]
-        t_test_items=[]
-        t_negative_items=[]
-        test_score=[]
-        negative_score=[]
-        dataloader_iterator = iter(test_loader)
+
+        hr_list = []
+        hr2_list = []
+        ndcg_list = []
         
-        for i , data1 in enumerate(test_negative_loader): 
+        for i , data in enumerate(test_loader): 
 
-            try :
-                data2 = next(dataloader_iterator)
-                with torch.no_grad():    
-                    if ('image' in kwargs.keys()) & ('text' in kwargs.keys()):
-                        test_users, test_items, image1, text1 = data2
-                        negative_users, negative_items, image2, text2 = data1
-                        
-                        test_scores = model(test_users, test_items, image=image1, text=text1)
-                        negative_scores = model(negative_users, negative_items, image=image2, text=text2)
-                    elif 'image' in kwargs.keys():
-                        test_users, test_items, image1 = data2
-                        negative_users, negative_items, image2 = data1
-                        
-                        test_scores = model(test_users, test_items, image=image1)
-                        negative_scores = model(negative_users, negative_items, image=image2)                
-                    elif 'text' in kwargs.keys():
-                        test_users, test_items, text1 = data2
-                        negative_users, negative_items, text2 = data1
-                        
-                        test_scores = model(test_users, test_items, text=text1)
-                        negative_scores = model(negative_users, negative_items, text=text2)                       
+            with torch.no_grad():    
+                if ('image' in kwargs.keys()) & ('text' in kwargs.keys()):
+                    user, item, image_f, text_f, label = data
+                    user, item, image_f, text_f, label = user.squeeze(0), item.squeeze(0), image_f.squeeze(0), text_f.squeeze(0), label.squeeze(0)
+                    user, item, image_f, text_f, label = user.cuda(), item.cuda(), image_f.cuda(), text_f.cuda(), label.cuda()
 
-                    else:
-                        test_users, test_items = data2
-                        negative_users, negative_items = data1
+                    score = model(user, item, image=image_f, text=text_f)
+                elif 'image' in kwargs.keys():
+                    user, item, image_f, label = data
+                    user, item, image_f, label = user.squeeze(0), item.squeeze(0), image_f.squeeze(0), label.squeeze(0)
+                    user, item, image_f, label = user.cuda(), item.cuda(), image_f.cuda(), label.cuda()
+
+                    score = model(user, item, image=image_f)
+                elif 'text' in kwargs.keys():
+                    user, item, text_f, label = data
+                    user, item, text_f, label = user.squeeze(0), item.squeeze(0), text_f.squeeze(0), label.squeeze(0)
+                    user, item, text_f, label = user.cuda(), item.cuda(), text_f.cuda(), label.cuda()
+
+                    score = model(user, item, text=text_f)
+                else:
+                    user, item, label = data
+                    user, item, label = user.squeeze(0), item.squeeze(0), label.squeeze(0)
+                    user, item, label = user.cuda(), item.cuda(), label.cuda()
                     
-                        test_scores = model(test_users, test_items)
-                        negative_scores = model(negative_users, negative_items)
-                    
-
-                    test_scores = test_scores.cpu()
-                    negative_scores = negative_scores.cpu()
-
-                    t_test_users.extend(test_users.detach().numpy())
-                    t_test_items.extend(test_items.detach().numpy())
-                    t_negative_users.extend(negative_users.detach().numpy())
-                    t_negative_items.extend(negative_items.detach().numpy())
-                    test_score.extend(test_scores.detach().numpy())
-                    negative_score.extend(negative_scores.detach().numpy())
-
-            except StopIteration: 
-                with torch.no_grad():    
-                    if ('image' in kwargs.keys()) & ('text' in kwargs.keys()):
-                        negative_users, negative_items, image2, text2 = data1
-                        
-                        negative_scores = model(negative_users, negative_items, image=image2, text=text2)
-                    elif 'image' in kwargs.keys():
-                        negative_users, negative_items, image2 = data1
-                        
-                        negative_scores = model(negative_users, negative_items, image=image2)                
-                    elif 'text' in kwargs.keys():
-                        negative_users, negative_items, text2 = data1
-                        
-                        negative_scores = model(negative_users, negative_items, text=text2)                       
-
-                    else:
-                        negative_users, negative_items = data1
-                    
-                        negative_scores = model(negative_users, negative_items)                    
-
-                    negative_scores = negative_scores.cpu()
-                    t_negative_users.extend(negative_users.detach().numpy())
-                    t_negative_items.extend(negative_items.detach().numpy())
-                    negative_score.extend(negative_scores.detach().numpy())
-    
+                    score = model(user, item)
+                
+                pos_idx = label.nonzero()
+                _, indices = torch.topk(score, self.top_k)
+                recommends = torch.take(item, indices).cpu().numpy()
+                gt_item = item[pos_idx].cpu().numpy()
+                performance = get_performance(gt_item, recommends.tolist())
+                hr_list.append(performance[0])
+                hr2_list.append(performance[1])
+                ndcg_list.append(performance[2])
         
-        self._metron.subjects = [t_test_users,
-                            t_test_items,
-                            test_score,
-                            t_negative_users,
-                            t_negative_items,
-                            negative_score]
-        hit_ratio, hit_ratio2, ndcg = self._metron.cal_hit_ratio(), self._metron.cal_hit_ratio2(), self._metron.cal_ndcg()
+        hit_ratio, hit_ratio2, ndcg = np.mean(hr_list), np.mean(hr2_list), np.mean(ndcg_list)
         print('[Evluating Epoch {}] HR = {:.4f}, HR2 = {:.4f}, NDCG = {:.4f}'.format(epoch_id+1, hit_ratio, hit_ratio2, ndcg))
         
         b=time.time()
         print("evaluate time:",b-a)  
         return hit_ratio, hit_ratio2, ndcg
-        
-
-            
