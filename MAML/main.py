@@ -11,8 +11,6 @@ import torch.multiprocessing as mp
 from utils import Logger, AverageMeter, str2bool
 from model import MAML
 from loss import Embedding_loss, Feature_loss, Covariance_loss
-import dataset_amazon as D_a
-import dataset_movie as D_m
 import dataset as D
 from metric import get_performance
 
@@ -22,12 +20,10 @@ parser.add_argument('--save_path', default='./result', type=str,
                     help='savepath')
 parser.add_argument('--batch_size', default=1024, type=int,
                     help='batch size')
-parser.add_argument('--epoch', default=300, type=int,
+parser.add_argument('--epoch', default=200, type=int,
                     help='train epoch')
-parser.add_argument('--data_path', default='/daintlab/data/recommend/Movielens-raw', type=str,
+parser.add_argument('--data_path', default='/daintlab/data/recommend/Amazon-office-raw', type=str,
                     help='Path to rating data')
-parser.add_argument('--feature_path', default='/daintlab/data/recommend/movielens', type=str,
-                    help='Path to feature data')
 parser.add_argument('--embed_dim', default=64, type=int,
                     help='Embedding Dimension')
 parser.add_argument('--dropout_rate', default=0.2, type=float,
@@ -70,14 +66,13 @@ def main():
     # Load dataset
     print("Loading Dataset")
     data_path = os.path.join(args.data_path,args.eval_type)
-    feature_path = args.feature_path
-    
-    train_df, test_df, train_ng_pool, test_negative, num_user, num_item, feature = D.load_data(data_path, feature_path, args.feature_type)
+        
+    train_df, test_df, train_ng_pool, test_negative, num_user, num_item, feature = D.load_data(data_path, args.feature_type)
     train_dataset = D.CustomDataset(train_df, feature, negative=train_ng_pool, num_neg=args.num_neg, istrain=True, use_feature=args.use_feature)
     test_dataset = D.CustomDataset(test_df, feature, negative=test_negative, num_neg=None, istrain=False, use_feature=args.use_feature)
     
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4,
-                              collate_fn=my_collate_trn)
+                              collate_fn=my_collate_trn, pin_memory=True)
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=8,
                               collate_fn=my_collate_tst, pin_memory =True)
 
@@ -225,9 +220,9 @@ def my_collate_tst(batch):
     item = [items[1] for items in batch]
     item = torch.LongTensor(item)
     feature = [items[2] for items in batch]
-    feature = torch.Tensor(feature)
+    feature = torch.FloatTensor(feature)
     label = [items[3] for items in batch]
-    label = torch.Tensor(label)
+    label = torch.FloatTensor(label)
     return [user, item, feature, label]
 
 

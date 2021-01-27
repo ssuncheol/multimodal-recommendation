@@ -8,7 +8,8 @@ from torch.utils.data import Dataset
 import pickle
 import ast
 
-def load_data(data_path, feature_path, feature_type):
+def load_data(data_path, feature_type):
+    feature_dir = os.path.join(data_path,'../')
     train_df = pd.read_feather(os.path.join(data_path, 'train_positive.ftr'))
     test_df = pd.read_feather(os.path.join(data_path, 'test_positive.ftr'))
     train_ng_pool = pd.read_feather(os.path.join(data_path, 'train_negative.ftr'))
@@ -26,51 +27,37 @@ def load_data(data_path, feature_path, feature_type):
     num_user = max(train_df["userID"])+1
     num_item = max(train_df["itemID"])+1
 
-    print(f"num user : {num_user} num item : {num_item}")
+    index_list = index_info["itemidx"].tolist()
+    id_list = index_info["itemid"].tolist()
+
+    # with open(os.path.join(feature_dir,"item_meta.json"), "rb") as f:
+    #     meta_data = json.load(f)
+    with open(os.path.join(feature_dir, 'image_feature_vec.pickle'), 'rb') as f:
+        image_vec = pickle.load(f)
+    with open(os.path.join(feature_dir, 'text_feature_vec.pickle'), 'rb') as f:
+        text_vec = pickle.load(f)
+    image_path_list = [] 
+    t_features = []
+    v_features = []
+    for item_id in id_list:
+        t_features.append(text_vec[item_id])
+        v_features.append(image_vec[item_id])
+        # img_path = meta_data[f"{item_id}"]["image_path"]
+        # image_path_list.append(os.path.abspath(os.path.join(feature_dir, img_path)))
+
+    t_features = np.array(t_features)
+    v_features = np.array(v_features)
+    # image_path_list = np.array(image_path_list)
+    print(f"Data Loaded. num user : {num_user} num item : {num_item}")
+    
     #### Load feature data ####
-    if feature_path.endswith('movielens'):
-        
-        with open(os.path.join(feature_path, 'image_feature_vec.pickle'), 'rb') as f:
-            img_vec = pickle.load(f)
-        with open(os.path.join(feature_path, 'text_feature_vec.pickle'), 'rb') as f:
-            text_vec = pickle.load(f)
-
-        index_list = index_info["itemidx"].tolist()
-        id_list = index_info["itemid"].tolist()
-
-        t_features = []
-        v_features = []
-        for i in range(len(index_list)):
-            t_features.append(text_vec[id_list[i]])
-            v_features.append(img_vec[id_list[i]])
-
-    elif feature_path.endswith('Office'):
-        doc2vec_model = Doc2Vec.load(os.path.join(feature_path, 'doc2vecFile'))
-        vis_vec = np.load(os.path.join(feature_path, 'image_feature.npy'), allow_pickle=True).item()
-        asin_dict = json.load(open(os.path.join(feature_path, 'asin_sample.json'), 'r'))
-
-        text_vec = {}
-        for asin in asin_dict:
-            text_vec[asin] = doc2vec_model.docvecs[asin]
-        import ipdb;ipdb.set_trace()
-        asin_i_dic = {}
-        for index, row in train_df.iterrows():
-            asin, i = row['asin'], int(row['itemID'])
-            asin_i_dic[i] = asin
-
-        t_features = []
-        v_features = []
-        for i in range(num_item):
-            t_features.append(text_vec[asin_i_dic[i]])
-            v_features.append(vis_vec[asin_i_dic[i]])
-    #### Load feature data ####
-    #### Choose feature type ####
+    
     if feature_type == "all":
         feature = np.concatenate((t_features, v_features), axis=1)
     elif feature_type == "img":
-        feature = np.array(v_features)
+        feature = v_features
     elif feature_type == "txt":
-        feature = np.array(t_features)
+        feature = t_features
     
     return train_df, test_df, train_ng_pool, test_negative, num_user, num_item, feature
 
@@ -104,7 +91,7 @@ class CustomDataset(Dataset):
             self.make_testset()
         else:
             self.dataset = np.array(self.dataset)
-
+            
     def make_testset(self):
         assert not self.istrain
         users = np.unique(self.dataset["userID"])
