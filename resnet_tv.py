@@ -289,7 +289,7 @@ class ResNet(nn.Module):
         # function to extract the penultimate features
 
     def penultimate_forward(self, x):
-        out = self.relu(self.bn1(self.conv1(x)))
+        out = self.maxpool(self.relu(self.bn1(self.conv1(x))))
         out = self.layer1(out)
         out = self.layer2(out)
         out = self.layer3(out)
