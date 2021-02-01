@@ -87,7 +87,7 @@ def main():
         checkpoint = torch.load(args.load_path)
         model.load_state_dict(checkpoint)
         print("Pretrained Model Loaded")
-    
+    import ipdb;ipdb.set_trace()
     # Freeze feature extractor
     for param in model.v_feature_extractor.parameters():
         param.requires_grad = False
@@ -115,7 +115,7 @@ def main():
 
     # Train & Eval
     for epoch in range(args.epoch):
-        train(model, embedding_loss, feature_loss, covariance_loss, optimizer, train_loader, train_logger, epoch)
+        #train(model, embedding_loss, feature_loss, covariance_loss, optimizer, train_loader, train_logger, epoch)
         # Save and test Model every n epoch
         if (epoch + 1) % args.eval_freq == 0 or epoch == 0:
             test(model, test_loader, test_logger, epoch, hit_record_logger)
