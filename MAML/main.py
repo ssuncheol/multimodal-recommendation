@@ -187,7 +187,7 @@ def test(model, test_loader, test_logger, epoch, hit_record_logger):
             user, item, feature, label =\
                  user.cuda(non_blocking=True), item.cuda(non_blocking=True), \
                  feature.cuda(non_blocking=True), label.cuda(non_blocking=True)
-            _, _, _, score = model(user, item, feature)
+            _, _, _, score = model(user, item, feature, image)
 
             pos_idx = label.nonzero()
             _, indices = torch.topk(-score, args.top_k)
