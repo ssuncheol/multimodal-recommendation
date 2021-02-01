@@ -13,12 +13,13 @@ from model import MAML
 from loss import Embedding_loss, Feature_loss, Covariance_loss
 import dataset as D
 from metric import get_performance
+import resnet_tv as resnet
 
 
 parser = argparse.ArgumentParser(description='MAML')
 parser.add_argument('--save_path', default='./result', type=str,
                     help='savepath')
-parser.add_argument('--batch_size', default=1024, type=int,
+parser.add_argument('--batch_size', default=256, type=int,
                     help='batch size')
 parser.add_argument('--epoch', default=200, type=int,
                     help='train epoch')
@@ -42,14 +43,14 @@ parser.add_argument('--num_neg', default=4, type=int,
                     help='Number of negative samples for training')
 parser.add_argument('--load_path', default=None, type=str,
                     help='Path to saved model')
-parser.add_argument('--use_feature', default=True, type=str2bool,
-                    help='Whether to use auxiliary information of items')
 parser.add_argument('--eval_freq', default=50, type=int,
                     help='evaluate performance every n epoch')
 parser.add_argument('--feature_type', default='all', type=str,
                     help='Type of feature to use. [all, img, txt]')
 parser.add_argument('--eval_type', default='ratio-split', type=str,
                     help='Evaluation protocol. [ratio-split, leave-one-out]')
+parser.add_argument('--cnn_path', default='./resnet18.pth', type=str,
+                    help='Path to feature data')
 args = parser.parse_args()
 
 
@@ -67,26 +68,32 @@ def main():
     print("Loading Dataset")
     data_path = os.path.join(args.data_path,args.eval_type)
         
-    train_df, test_df, train_ng_pool, test_negative, num_user, num_item, feature = D.load_data(data_path, args.feature_type)
-    train_dataset = D.CustomDataset(train_df, feature, negative=train_ng_pool, num_neg=args.num_neg, istrain=True, use_feature=args.use_feature)
-    test_dataset = D.CustomDataset(test_df, feature, negative=test_negative, num_neg=None, istrain=False, use_feature=args.use_feature)
+    train_df, test_df, train_ng_pool, test_negative, num_user, num_item, text_feature, images = D.load_data(data_path, args.feature_type)
+    train_dataset = D.CustomDataset(train_df, text_feature, images, negative=train_ng_pool, num_neg=args.num_neg, istrain=True, feature_type=args.feature_type)
+    test_dataset = D.CustomDataset(test_df, text_feature, images, negative=test_negative, num_neg=None, istrain=False, feature_type=args.feature_type)
     
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4,
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=0,
                               collate_fn=my_collate_trn, pin_memory=True)
-    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=8,
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=0,
                               collate_fn=my_collate_tst, pin_memory =True)
 
     # Model
-    feature_dim = feature.shape[-1]
-    model = MAML(num_user, num_item, args.embed_dim, args.dropout_rate, args.use_feature, feature_dim).cuda()
+    t_feature_dim = text_feature.shape[-1]
+    feature_extractor = resnet.resnet18()
+    feature_extractor.load_state_dict(torch.load(args.cnn_path))
+    model = MAML(num_user, num_item, args.embed_dim, args.dropout_rate, args.feature_type, t_feature_dim, feature_extractor).cuda()
     print(model)
     if args.load_path is not None:
         checkpoint = torch.load(args.load_path)
         model.load_state_dict(checkpoint)
         print("Pretrained Model Loaded")
+    
+    # Freeze feature extractor
+    for param in model.v_feature_extractor.parameters():
+        param.requires_grad = False
 
     # Optimizer
-    if args.use_feature:
+    if args.feature_type != "rating":
         optimizer = torch.optim.Adam([{'params': model.embedding_user.parameters()},
                                         {'params': model.embedding_item.parameters()},
                                         {'params': model.feature_fusion.parameters()},
@@ -125,15 +132,18 @@ def train(model, embedding_loss, feature_loss, covariance_loss, optimizer, train
     iter_time = AverageMeter()
 
     end = time.time()
-    for i, (user, item_p, item_n, feature_p, feature_n) in enumerate(train_loader):
+    for i, (user, item_p, item_n, t_feature_p, t_feature_n, img_p, img_n) in enumerate(train_loader):
         data_time.update(time.time() - end)
-        user, item_p, item_n, feature_p, feature_n = user.cuda(), item_p.cuda(), item_n.cuda(), feature_p.cuda(), feature_n.cuda()
+        user, item_p, item_n, t_feature_p, t_feature_n, img_p, img_n =\
+             user.cuda(non_blocking=True), item_p.cuda(non_blocking=True), \
+             item_n.cuda(non_blocking=True), t_feature_p.cuda(non_blocking=True), \
+             t_feature_n.cuda(non_blocking=True), img_p.cuda(non_blocking=True), img_n.cuda(non_blocking=True)
 
-        p_u, q_i, q_i_feature, dist_p = model(user, item_p, feature_p)
-        _, q_k, q_k_feature, dist_n = model(user, item_n, feature_n)
+        p_u, q_i, q_i_feature, dist_p = model(user, item_p, t_feature_p, img_p)
+        _, q_k, q_k_feature, dist_n = model(user, item_n, t_feature_n, img_n)
         # Loss
         loss_e = embedding_loss(dist_p, dist_n)
-        if args.use_feature:
+        if args.feature_type != "rating":
             loss_f = feature_loss(q_i, q_i_feature, q_k, q_k_feature)
             loss_c = covariance_loss(p_u, q_i, q_k)
             loss = loss_e + (args.feat_weight * loss_f) + (args.cov_weight * loss_c)
@@ -170,11 +180,13 @@ def test(model, test_loader, test_logger, epoch, hit_record_logger):
     data_time = AverageMeter()
     iter_time = AverageMeter()
     end = time.time()
-    for i, (user, item, feature, label) in enumerate(test_loader):
+    for i, (user, item, feature, image, label) in enumerate(test_loader):
         data_time.update(time.time() - end)
         with torch.no_grad():
-            user, item, feature, label = user.squeeze(0), item.squeeze(0), feature.squeeze(0), label.squeeze(0)
-            user, item, feature, label = user.cuda(), item.cuda(), feature.cuda(), label.cuda()
+            user, item, feature, image, label = user.squeeze(0), item.squeeze(0), feature.squeeze(0), image.squeeze(0), label.squeeze(0)
+            user, item, feature, label =\
+                 user.cuda(non_blocking=True), item.cuda(non_blocking=True), \
+                 feature.cuda(non_blocking=True), label.cuda(non_blocking=True)
             _, _, _, score = model(user, item, feature)
 
             pos_idx = label.nonzero()
@@ -207,23 +219,29 @@ def my_collate_trn(batch):
     item_p = torch.LongTensor(item_p)
     item_n = [item[2] for item in batch]
     item_n = torch.LongTensor(item_n)
-    feature_p = [item[3] for item in batch]
-    feature_p = torch.Tensor(feature_p)
-    feature_n = [item[4] for item in batch]
-    feature_n = torch.Tensor(feature_n)
-    return [user, item_p, item_n, feature_p, feature_n]
+    t_feature_p = [item[3] for item in batch]
+    t_feature_p = torch.FloatTensor(t_feature_p)
+    t_feature_n = [item[4] for item in batch]
+    t_feature_n = torch.FloatTensor(t_feature_n)
+    img_p = [item[5] for item in batch]
+    img_p = torch.stack(img_p)
+    img_n = [item[6] for item in batch]
+    img_n = torch.stack(img_n)
 
+    return [user, item_p, item_n, t_feature_p, t_feature_n, img_p, img_n]
 
 def my_collate_tst(batch):
     user = [items[0] for items in batch]
     user = torch.LongTensor(user)
     item = [items[1] for items in batch]
     item = torch.LongTensor(item)
-    feature = [items[2] for items in batch]
-    feature = torch.FloatTensor(feature)
-    label = [items[3] for items in batch]
+    t_feature = [items[2] for items in batch]
+    t_feature = torch.FloatTensor(t_feature)
+    img = [items[3] for items in batch]
+    img = torch.stack(img)
+    label = [items[4] for items in batch]
     label = torch.FloatTensor(label)
-    return [user, item, feature, label]
+    return [user, item, t_feature, img, label]
 
 
 if __name__ == "__main__":
