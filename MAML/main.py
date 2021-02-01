@@ -184,9 +184,9 @@ def test(model, test_loader, test_logger, epoch, hit_record_logger):
         data_time.update(time.time() - end)
         with torch.no_grad():
             user, item, feature, image, label = user.squeeze(0), item.squeeze(0), feature.squeeze(0), image.squeeze(0), label.squeeze(0)
-            user, item, feature, label =\
+            user, item, feature, image, label =\
                  user.cuda(non_blocking=True), item.cuda(non_blocking=True), \
-                 feature.cuda(non_blocking=True), label.cuda(non_blocking=True)
+                 image.cuda(non_blocking=True), feature.cuda(non_blocking=True), label.cuda(non_blocking=True)
             _, _, _, score = model(user, item, feature, image)
 
             pos_idx = label.nonzero()
