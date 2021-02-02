@@ -51,6 +51,8 @@ parser.add_argument('--eval_type', default='ratio-split', type=str,
                     help='Evaluation protocol. [ratio-split, leave-one-out]')
 parser.add_argument('--cnn_path', default='./resnet18.pth', type=str,
                     help='Path to feature data')
+parser.add_argument('--freeze_cnn', default=True, type=str2bool,
+                    help='Whether to freeze CNN module')
 args = parser.parse_args()
 
 
@@ -80,17 +82,21 @@ def main():
     # Model
     t_feature_dim = text_feature.shape[-1]
     feature_extractor = resnet.resnet18()
-    feature_extractor.load_state_dict(torch.load(args.cnn_path))
+    if args.cnn_path is not None:
+        feature_extractor.load_state_dict(torch.load(args.cnn_path))
+        print("Pretrained CNN Model Loaded")
+
     model = MAML(num_user, num_item, args.embed_dim, args.dropout_rate, args.feature_type, t_feature_dim, feature_extractor).cuda()
     print(model)
     if args.load_path is not None:
         checkpoint = torch.load(args.load_path)
         model.load_state_dict(checkpoint)
         print("Pretrained Model Loaded")
-    import ipdb;ipdb.set_trace()
+
     # Freeze feature extractor
-    for param in model.v_feature_extractor.parameters():
-        param.requires_grad = False
+    if args.freeze_cnn:
+        for param in model.v_feature_extractor.parameters():
+            param.requires_grad = False
 
     # Optimizer
     if args.feature_type != "rating":
