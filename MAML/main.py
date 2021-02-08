@@ -112,14 +112,14 @@ def main():
     # Train & Eval
     for epoch in range(args.epoch):
         start=time.time()
-        train(model, embedding_loss, feature_loss, covariance_loss, optimizer,scaler, train_loader, train_logger, epoch)
-        print('epoch time : ', time.time()-start, ' => ', (time.time()-start)/60, 'min')
+        train(model, embedding_loss, feature_loss, covariance_loss, optimizer, scaler, train_loader, train_logger, epoch)
+        print('epoch time : ', time.time()-start, 'sec/epoch => ', (time.time()-start)/60, 'min/epoch')
         # Save and test Model every n epoch
         if (epoch + 1) % args.eval_freq == 0 or epoch == 0:
             test(model, test_loader, test_logger, epoch, hit_record_logger)
             torch.save(model.state_dict(), f"{save_path}/model_{epoch + 1}.pth")
 
-def train(model, embedding_loss, feature_loss, covariance_loss, optimizer,scaler, train_loader, train_logger, epoch):
+def train(model, embedding_loss, feature_loss, covariance_loss, optimizer, scaler, train_loader, train_logger, epoch):
     model.train()
     total_loss = AverageMeter()
     embed_loss = AverageMeter()
