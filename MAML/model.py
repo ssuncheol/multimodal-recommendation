@@ -1,10 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+import resnet_tv as resnet
 
 class MAML(nn.Module):
-    def __init__(self, n_users, n_items, embed_dim, dropout_rate, feature_type, t_feature_dim, v_feature_extractor):
+    def __init__(self, n_users, n_items, embed_dim, dropout_rate, feature_type, t_feature_dim, v_feature_extractor_path):
         super(MAML, self).__init__()
         self.embed_dim = embed_dim
         self.n_users = n_users
@@ -18,8 +18,14 @@ class MAML(nn.Module):
         self.embedding_item = nn.Embedding(n_items, embed_dim, max_norm=1.0)
 
         # Image feature extractor module
-        self.v_feature_extractor = v_feature_extractor
+        self.v_feature_extractor = resnet.resnet18()
         self.v_feature_dim = self.v_feature_extractor.fc.in_features
+        
+        if v_feature_extractor_path is not None:
+            self.v_feature_extractor.load_state_dict(torch.load(v_feature_extractor_path))
+        self.v_feature_extractor.eval()
+        for param in self.v_feature_extractor.parameters():
+            param.requires_grad = False
 
         # Feature Fusion Layers
         """
