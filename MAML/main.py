@@ -73,9 +73,9 @@ def main():
                                     istrain=True, feature_type=args.feature_type)
     test_dataset = D.CustomDataset(test_df, text_feature, images, negative=test_negative, num_neg=None,
                                    istrain=False, feature_type=args.feature_type)
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=0,
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4,
                               collate_fn=my_collate_trn, pin_memory=True)
-    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=0,
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4,
                              collate_fn=my_collate_tst, pin_memory=True)
 
     # Model
