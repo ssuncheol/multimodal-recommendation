@@ -1,11 +1,3 @@
-import numpy as np
-import pandas as pd
-import os
-import json
-import time
-from gensim.models.doc2vec import Doc2Vec
-from torch.utils.data import Dataset
-import pickle
 from PIL import Image
 import torchvision.transforms as transforms
 import torch
@@ -57,7 +49,7 @@ def load_data(data_path, feature_type):
             img = transform(img)
             images.append(img)
         images = torch.stack(images)
-        images = dict(enumerate(images,0))
+        #images = dict(enumerate(images,0))
     
     print(f"Data Loaded. num user : {num_user} num item : {num_item} {time.time()-start:.4f} sec")
     return train_df, test_df, train_ng_pool, test_negative, num_user, num_item, t_features, images
@@ -121,8 +113,8 @@ class CustomDataset(Dataset):
             user, item_p = self.dataset[index]
             # Negative sampling
             ng_pool = np.array(self.negative[user])
-            # idx = np.random.choice(len(ng_pool),self.num_neg,replace=False)
-            idx = random.sample(list(range(0,len(ng_pool))), self.num_neg)
+            idx = np.random.choice(len(ng_pool),self.num_neg,replace=False)
+            #idx = random.sample(list(range(0,len(ng_pool))), self.num_neg)
             item_n = ng_pool[idx].tolist()
 
             ####
