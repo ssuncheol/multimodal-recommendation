@@ -14,7 +14,7 @@ class Engine(object):
             return 0, 0, 0
         
         # model.eval()
-
+ 
         hr_list = []
         hr2_list = []
         ndcg_list = []
@@ -24,27 +24,24 @@ class Engine(object):
                     user, item, image_f, text_f, label = data
                     user, item, image_f, text_f, label = user.squeeze(0), item.squeeze(0), image_f.squeeze(0), text_f.squeeze(0), label.squeeze(0)
                     user, item, image_f, text_f, label = user.cuda(), item.cuda(), image_f.cuda(), text_f.cuda(), label.cuda()
-
-                    score = model(user, item, image=image_f, text=text_f)
                 elif 'image' in kwargs.keys():
                     user, item, image_f, label = data
                     user, item, image_f, label = user.squeeze(0), item.squeeze(0), image_f.squeeze(0), label.squeeze(0)
                     user, item, image_f, label = user.cuda(), item.cuda(), image_f.cuda(), label.cuda()
-
-                    score = model(user, item, image=image_f)
+                    text_f = None
                 elif 'text' in kwargs.keys():
                     user, item, text_f, label = data
                     user, item, text_f, label = user.squeeze(0), item.squeeze(0), text_f.squeeze(0), label.squeeze(0)
                     user, item, text_f, label = user.cuda(), item.cuda(), text_f.cuda(), label.cuda()
-
-                    score = model(user, item, text=text_f)
+                    image_f = None
                 else:
                     user, item, label = data
                     user, item, label = user.squeeze(0), item.squeeze(0), label.squeeze(0)
                     user, item, label = user.cuda(), item.cuda(), label.cuda()
-                    
-                    score = model(user, item)
+                    image_f = None
+                    text_f = None
                 
+                score = model(user, item, image=image_f, text=text_f)
                 pos_idx = label.nonzero()
                 _, indices = torch.topk(score, self.top_k)
                 recommends = torch.take(item, indices).cpu().numpy()
@@ -53,7 +50,7 @@ class Engine(object):
                 hr_list.append(performance[0])
                 hr2_list.append(performance[1])
                 ndcg_list.append(performance[2])
-        
+            
         hit_ratio, hit_ratio2, ndcg = np.mean(hr_list), np.mean(hr2_list), np.mean(ndcg_list)
         print('[Evluating Epoch {}] HR = {:.4f}, HR2 = {:.4f}, NDCG = {:.4f}'.format(epoch_id+1, hit_ratio, hit_ratio2, ndcg))
         
