@@ -9,7 +9,7 @@ import time
 import random
 from dataloader import Make_Dataset, UserItemtestDataset, UserItemTrainDataset
 from utils import optimizer
-from model2 import NeuralCF
+from model import NeuralCF
 from evaluate import Engine
 from torch.utils.data import DataLoader
 from PIL import Image
@@ -19,8 +19,15 @@ from collate import my_collate_trn_0, my_collate_trn_1, my_collate_trn_2, my_col
 import warnings
 warnings.filterwarnings("ignore")
 
+# model 저장 함수
+def save(ckpt_dir, net, optim, epoch, image_type):
+  if not os.path.exists(ckpt_dir):
+    os.makedirs(ckpt_dir)
+
+  torch.save({'net': net.state_dict(), 'optim': optim.state_dict()},
+              '%s/model_epoch%d_%s.pth' % (ckpt_dir, epoch, image_type))
 def main():
-    experiment = Experiment(project_name='recommend', api_key='Bc3OhH0UQZebqFKyM77eLZnAm')
+    experiment = Experiment(project_name='Amazon recommendation', api_key='Bc3OhH0UQZebqFKyM77eLZnAm')
     parser = argparse.ArgumentParser()
     parser.add_argument('--path',
                 type=str,
@@ -90,6 +97,14 @@ def main():
                 type=int,
                 default=1,
                 help='evaluation interval')
+    parser.add_argument('--extractor_path',
+                type=str,
+                default='/daintlab/home/tmddnjs3467/workspace/Amazon-office-raw/resnet18-5c106cde.pth',
+                help='path of feature extractor(pretrained model)')
+    parser.add_argument('--amp',
+                type=bool,
+                default=True,
+                help='using amp(Automatic mixed-precision)')
     args = parser.parse_args()
     experiment.log_parameters(args)
     
@@ -112,8 +127,9 @@ def main():
     if args.image:
         # raw image를 쓸 것인지, 전처리 해놓은 feature vector를 쓸 지.
         if args.feature == 'raw':
-            transform = transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor(), 
-                                    transforms.Normalize((0.5,), (0.5,))])
+            transform = transforms.Compose([transforms.Resize((224, 224)), 
+                                            transforms.ToTensor(), 
+                                            transforms.Normalize((0.5,), (0.5,))])
             img_list = os.listdir('%s/image' % args.path)
             for i in img_list:
                 img_dict[item_index_info[item_index_info['itemid'] == i.split('.')[0]]['itemidx'].item()] = transform(Image.open(os.path.join('%s/image/%s' % (args.path, i))).convert('RGB'))
@@ -142,18 +158,42 @@ def main():
     # user, item, rating = MD.trainset
     eval_dataset = MD.evaluate_data
     
+    
+    # ########### raw랑 pre랑 test 해보자 ##################
+    # def load(ckpt_dir, net):
+    #     dict_model = torch.load('%s/%s' % (ckpt_dir, 'model_epoch10_raw.pth'))
+    #     net.load_state_dict(dict_model['net'])
+    
+    #     return net
+    # model = NeuralCF(num_users=num_user, num_items=num_item, 
+    #                     embedding_size=args.latent_dim_mf, dropout=args.drop_rate,
+    #                     num_layers=args.num_layers, feature=args.feature, image=image_shape, extractor_path=args.extractor_path)  
+    # # model = nn.DataParallel(model)
+    # model = model.cuda()
+    # ckpt_dir = '%s/ckpt_dir' % args.path
+    # test_dataset = UserItemtestDataset(eval_dataset, image=img_dict)
+    # test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4,
+    #                 collate_fn=my_collate_tst_1, pin_memory=True)
+    # model = load(ckpt_dir, model)
+    # engine = Engine(args.top_k)
+    # epoch = 0
+    # hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, image=img_dict, eval=args.eval, interval=args.interval)
+    # import pdb; pdb.set_trace()
+    # ###################################################
+    
+    
     #NCF model
     if (args.image) & (args.text):
         print("IMAGE TEXT MODEL")
         model = NeuralCF(num_users=num_user, num_items=num_item, 
                         embedding_size=args.latent_dim_mf, dropout=args.drop_rate,
-                        num_layers=args.num_layers, feature=args.feature, image=image_shape, text=text_shape)    
+                        num_layers=args.num_layers, feature=args.feature, image=image_shape, text=text_shape, extractor_path=args.extractor_path)    
     
     elif args.image:
         print("IMAGE MODEL")
         model = NeuralCF(num_users=num_user, num_items=num_item, 
                         embedding_size=args.latent_dim_mf, dropout=args.drop_rate,
-                        num_layers=args.num_layers, feature=args.feature, image=image_shape)  
+                        num_layers=args.num_layers, feature=args.feature, image=image_shape, extractor_path=args.extractor_path)  
     
     elif args.text:
         print("TEXT MODEL")
@@ -167,14 +207,16 @@ def main():
                         embedding_size=args.latent_dim_mf, dropout=args.drop_rate,
                         num_layers=args.num_layers, feature=args.feature)
     
-    model = nn.DataParallel(model)
+    # model = nn.DataParallel(model)
     model = model.cuda()
     print(model)
 
     optim = optimizer(optim=args.optim, lr=args.lr, model=model, weight_decay=args.l2)
     criterion = nn.BCEWithLogitsLoss()
     
-    # experiment.log_model(model)
+    # amp
+    if args.amp:
+        scaler = torch.cuda.amp.GradScaler()
 
     # train loader 생성
     if (args.image) & (args.text):               
@@ -182,7 +224,7 @@ def main():
         train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4, collate_fn=my_collate_trn_2, pin_memory =True)
     elif args.image:              
         train_dataset = UserItemTrainDataset(df_train_p, df_train_n, args.num_neg, image=img_dict)
-        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=0, collate_fn=my_collate_trn_1, pin_memory =True)
+        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4, collate_fn=my_collate_trn_1, pin_memory =True)
     elif args.text:           
         train_dataset = UserItemTrainDataset(df_train_p, df_train_n, args.num_neg, text=txt_dict)
         train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4, collate_fn=my_collate_trn_1, pin_memory =True)
@@ -204,62 +246,73 @@ def main():
                 optim.zero_grad()
                 if (args.image) & (args.text):
                     users, items, ratings, image, text = batch[0], batch[1], batch[2], batch[3], batch[4]             
-                    users, items, ratings, image, text = users.cuda(), items.cuda(), ratings.cuda(), image.cuda(), text.cuda()
-                    output = model(users, items, image=image, text=text)
+                    users, items, ratings, image, text = users.cuda(), items.cuda(), ratings.cuda(), image.cuda(), text.cuda()    
                 elif args.image: 
                     users, items, ratings, image = batch[0], batch[1], batch[2], batch[3]                  
                     users, items, ratings, image = users.cuda(), items.cuda(), ratings.cuda(), image.cuda()
-                    output = model(users, items, image=image)
+                    text = None
                 elif args.text:                   
                     users, items, ratings, text = batch[0], batch[1], batch[2], batch[3]
                     users, items, ratings, text = users.cuda(), items.cuda(), ratings.cuda(), text.cuda()
-                    output = model(users, items, text=text)
+                    image = None
                 else :                   
                     users, items, ratings = batch[0], batch[1], batch[2]
                     users, items, ratings = users.cuda(), items.cuda(), ratings.cuda()
-                    output = model(users, items)
-                
+                    image = None
+                    text = None
+        
                 step += 1
-                loss = criterion(output, ratings)
-                loss.backward()
-                optim.step()
+                if args.amp:  
+                    with torch.cuda.amp.autocast():
+                        output = model(users, items, image=image, text=text)
+                        loss = criterion(output, ratings)  
+                    scaler.scale(loss).backward()
+                    scaler.step(optim)
+                    scaler.update()
+                else:
+                    output = model(users, items, image=image, text=text)
+                    loss = criterion(output, ratings)
+                    loss.backward()
+                    optim.step()
                 loss = loss.item()
-                experiment.log_metric('Batch Loss', loss, step=step)
+                experiment.log_metric('epoch loss', loss, epoch=epoch+1)
                 total_loss += loss
 
             t2 = time.time()
             print("train : ", t2 - t1) 
-
-        engine = Engine(args.top_k)
-        t3 = time.time()
-        if (args.image) & (args.text):            
-            test_dataset = UserItemtestDataset(eval_dataset, image=img_dict, text=txt_dict)
-            test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4,
-                            collate_fn=my_collate_tst_2, pin_memory =True)
-            hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, image=img_dict, text=txt_dict, eval=args.eval, interval=args.interval)
-        elif args.image:
-            test_dataset = UserItemtestDataset(eval_dataset, image=img_dict)
-            test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=0,
-                            collate_fn=my_collate_tst_1, pin_memory =True)
-            hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, image=img_dict, eval=args.eval, interval=args.interval)
-        elif args.text:
-            test_dataset = UserItemtestDataset(eval_dataset, text=txt_dict)
-            test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4,
-                            collate_fn=my_collate_tst_1, pin_memory =True)
-            hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, text=txt_dict, eval=args.eval, interval=args.interval)                
-        else:
-            test_dataset = UserItemtestDataset(eval_dataset)
-            test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4,
-                            collate_fn=my_collate_tst_0, pin_memory =True)
-            hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, eval=args.eval, interval=args.interval)  
-        t4 = time.time()
-        print('test:', t4 - t3) 
-        
-        if (epoch + 1) % args.interval == 0: 
-            experiment.log_metrics({"epoch" : epoch,
-                        "HR" : hit_ratio,
-                        "HR2" : hit_ratio2,
-                        "NDCG" : ndcg}, epoch=(epoch+1))
+        with experiment.test():
+            engine = Engine(args.top_k)
+            t3 = time.time()
+            if (args.image) & (args.text):            
+                test_dataset = UserItemtestDataset(eval_dataset, image=img_dict, text=txt_dict)
+                test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4,
+                                collate_fn=my_collate_tst_2, pin_memory =True)
+                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, image=img_dict, text=txt_dict, eval=args.eval, interval=args.interval)
+            elif args.image:
+                test_dataset = UserItemtestDataset(eval_dataset, image=img_dict)
+                test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4,
+                                collate_fn=my_collate_tst_1, pin_memory =True)
+                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, image=img_dict, eval=args.eval, interval=args.interval)
+            elif args.text:
+                test_dataset = UserItemtestDataset(eval_dataset, text=txt_dict)
+                test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4,
+                                collate_fn=my_collate_tst_1, pin_memory =True)
+                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, text=txt_dict, eval=args.eval, interval=args.interval)                
+            else:
+                test_dataset = UserItemtestDataset(eval_dataset)
+                test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4,
+                                collate_fn=my_collate_tst_0, pin_memory =True)
+                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, eval=args.eval, interval=args.interval)  
+            t4 = time.time()
+            print('test:', t4 - t3) 
+            
+            if (epoch + 1) % args.interval == 0: 
+                ckpt_dir = '%s/ckpt_dir' % args.path
+                experiment.log_metrics({"epoch" : epoch,
+                            "HR" : hit_ratio,
+                            "HR2" : hit_ratio2,
+                            "NDCG" : ndcg}, epoch=(epoch+1))
+                save(ckpt_dir, model, optim, args.interval, args.feature)
         
 if __name__ == '__main__':
     main()
