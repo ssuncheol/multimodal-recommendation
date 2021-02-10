@@ -12,10 +12,14 @@ class NeuralCF(nn.Module):
         self.user_embedding_mlp = nn.Embedding(num_users, embedding_size)
         self.item_embedding_mlp = nn.Embedding(num_items, embedding_size)
         
+        self.feature_extract = resnet_tv.resnet18()
         if ('image' in kwargs.keys()):
             print("IMAGE FEATURE")
             if self.feature == 'raw':
-                self.feature_extract = resnet_tv.resnet18().eval()
+                self.feature_extract.load_state_dict(torch.load(kwargs['extractor_path']))    
+            self.feature_extract.eval()
+            for param in self.feature_extract.parameters():
+                param.requires_grad = False
             self.image_embedding = nn.Linear(kwargs["image"], embedding_size) 
         if ('text' in kwargs.keys()):
             print("TEXT FEATURE")
@@ -73,14 +77,15 @@ class NeuralCF(nn.Module):
         user_mlp = self.user_embedding_mlp(user_indices)
         item_mlp = self.item_embedding_mlp(item_indices)
         
-        if ('image' in kwargs.keys()):
+        if kwargs['image'] is not None:
             if self.feature == 'raw':
                 _, image = self.feature_extract.feature_list(kwargs['image'])
+                # import pdb;pdb.set_trace()
                 image = F.relu(self.image_embedding(image[5]))
             else:
                 image = F.relu(self.image_embedding(kwargs['image']))
             item_mlp = torch.cat([item_mlp,image], -1)
-        if ('text' in kwargs.keys()):
+        if kwargs['text'] is not None:
             text = F.relu(self.text_embedding(kwargs["text"]))
             item_mlp = torch.cat([item_mlp,text], -1)
         
