@@ -1,4 +1,4 @@
-from comet_ml import Experiment
+#from comet_ml import Experiment
 import torch
 import argparse
 import json
@@ -57,21 +57,21 @@ args = parser.parse_args()
 def main(rank, args):
     # Initialize Each Process
     init_process(rank, args.world_size)
-    hyper_params={
-        "batch_size":args.batch_size,
-        "epoch":args.epoch,
-        "embed_dim":args.embed_dim,
-        "dropout_rate":args.dropout_rate,
-        "learning_rate":args.lr,
-        "margin":args.margin,
-        "feat_weight":args.feat_weight,
-        "cov_weight":args.cov_weight,
-        "top_k":args.top_k,
-        "num_neg":args.num_neg,
-        "eval_freq":args.eval_freq,
-        "feature_type":args.feature_type,
-        "eval_type":args.eval_type
-    }
+    # hyper_params={
+    #     "batch_size":args.batch_size,
+    #     "epoch":args.epoch,
+    #     "embed_dim":args.embed_dim,
+    #     "dropout_rate":args.dropout_rate,
+    #     "learning_rate":args.lr,
+    #     "margin":args.margin,
+    #     "feat_weight":args.feat_weight,
+    #     "cov_weight":args.cov_weight,
+    #     "top_k":args.top_k,
+    #     "num_neg":args.num_neg,
+    #     "eval_freq":args.eval_freq,
+    #     "feature_type":args.feature_type,
+    #     "eval_type":args.eval_type
+    # }
     # Set save path
     save_path = args.save_path
     if not os.path.exists(save_path) and dist.get_rank() == 0:
@@ -80,13 +80,13 @@ def main(rank, args):
         with open(save_path + '/configuration.json', 'w') as f:
             json.dump(args.__dict__, f, indent=2)
 
-    if dist.get_rank() == 0:
-        experiment = Experiment(api_key="ZSGBzbLxOxZe4qEZ917ZbOV1m",project_name='recommend',log_code=False,
-        auto_param_logging=False, auto_metric_logging=False, log_env_details=False, log_git_metadata=False,
-        log_git_patch=False)
-        experiment.log_parameters(hyper_params)
-    else:
-        experiment=Experiment(api_key="ZSGBzbLxOxZe4qEZ917ZbOV1m",disabled=True)
+    # if dist.get_rank() == 0:
+    #     experiment = Experiment(api_key="ZSGBzbLxOxZe4qEZ917ZbOV1m",project_name='recommend',log_code=False,
+    #     auto_param_logging=False, auto_metric_logging=False, log_env_details=False, log_git_metadata=False,
+    #     log_git_patch=False)
+    #     experiment.log_parameters(hyper_params)
+    # else:
+    #     experiment=Experiment(api_key="ZSGBzbLxOxZe4qEZ917ZbOV1m",disabled=True)
     
     # Load dataset
     print("Loading Dataset")
@@ -144,18 +144,18 @@ def main(rank, args):
     for epoch in range(args.epoch):
         start=time.time()
         train_sampler.set_epoch(epoch)
-        train(model, embedding_loss, feature_loss, covariance_loss, optimizer,scaler, train_loader, train_logger, epoch, experiment)
+        train(model, embedding_loss, feature_loss, covariance_loss, optimizer,scaler, train_loader, train_logger, epoch)
         print('epoch time : ', time.time()-start, 'sec/epoch => ', (time.time()-start)/60, 'min/epoch')
         # Save and test Model every n epoch
         if (epoch + 1) % args.eval_freq == 0 or epoch == 0:
             start=time.time()
-            test(model, test_loader, test_logger, epoch, hit_record_logger, experiment)
+            test(model, test_loader, test_logger, epoch, hit_record_logger)
             torch.save(model.state_dict(), f"{save_path}/model_{epoch + 1}.pth")
             print('test time : ', time.time()-start, 'sec/epoch => ', (time.time()-start)/60, 'min')
-    cleanup()
-    experiment.end()
+    #cleanup()
+    #experiment.end()
 
-def train(model, embedding_loss, feature_loss, covariance_loss, optimizer,scaler, train_loader, train_logger, epoch, experiment):
+def train(model, embedding_loss, feature_loss, covariance_loss, optimizer,scaler, train_loader, train_logger, epoch):
     model.train()
     total_loss = AverageMeter()
     embed_loss = AverageMeter()
@@ -203,10 +203,10 @@ def train(model, embedding_loss, feature_loss, covariance_loss, optimizer,scaler
         iter_time.update(time.time() - end)
         end = time.time()
 
-        experiment.log_metric("total_loss",total_loss.avg, step=epoch)
-        experiment.log_metric("embed_loss",embed_loss.avg, step=epoch)
-        experiment.log_metric("feat_loss",feat_loss.avg, step=epoch)
-        experiment.log_metric("cov_loss",cov_loss.avg, step=epoch)
+        # experiment.log_metric("total_loss",total_loss.avg, step=epoch)
+        # experiment.log_metric("embed_loss",embed_loss.avg, step=epoch)
+        # experiment.log_metric("feat_loss",feat_loss.avg, step=epoch)
+        # experiment.log_metric("cov_loss",cov_loss.avg, step=epoch)
         
         if i % 10 == 0 and dist.get_rank() == 0:
             print(f"[{epoch + 1}/{args.epoch}][{i}/{len(train_loader)}] Total loss : {total_loss.avg:.4f} \
@@ -216,7 +216,7 @@ def train(model, embedding_loss, feature_loss, covariance_loss, optimizer,scaler
         train_logger.write([epoch, total_loss.avg, embed_loss.avg,
                             feat_loss.avg, cov_loss.avg])
 
-def test(model, test_loader, test_logger, epoch, hit_record_logger, experiment):
+def test(model, test_loader, test_logger, epoch, hit_record_logger):
     model.eval()
     hr = AverageMeter()
     hr2 = AverageMeter()
@@ -251,9 +251,9 @@ def test(model, test_loader, test_logger, epoch, hit_record_logger, experiment):
             iter_time.update(time.time() - end)
             end = time.time()
 
-            experiment.log_metric("hit-ratio",hr.avg,step=epoch)
-            experiment.log_metric("hit-ratio2",hr2.avg,step=epoch)
-            experiment.log_metric("ndcg",ndcg.avg,step=epoch)
+            # experiment.log_metric("hit-ratio",hr.avg,step=epoch)
+            # experiment.log_metric("hit-ratio2",hr2.avg,step=epoch)
+            # experiment.log_metric("ndcg",ndcg.avg,step=epoch)
 
             if epoch + 1 == args.epoch and dist.get_rank() == 0:
                 hit_record_logger.write([user[0].item(), len(gt_item), performance[0]])
@@ -299,7 +299,7 @@ def my_collate_tst(batch):
 
 def init_process(rank, world_size, backend='nccl'):
     os.environ['MASTER_ADDR'] = '127.0.0.1'
-    os.environ['MASTER_PORT'] = '9999'
+    os.environ['MASTER_PORT'] = '88888'
     dist.init_process_group(backend, rank=rank, world_size=world_size)
 
 def reduce_tensor(tensor, world_size):
