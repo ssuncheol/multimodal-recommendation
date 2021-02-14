@@ -3,6 +3,7 @@ from torch.utils.data import Dataset
 import torchvision.transforms as transforms
 import torch
 import random
+import time
 
 def load_data(data_path, feature_type):
     start = time.time()
