@@ -1,4 +1,5 @@
 from PIL import Image
+from torch.utils.data import Dataset
 import torchvision.transforms as transforms
 import torch
 import random
