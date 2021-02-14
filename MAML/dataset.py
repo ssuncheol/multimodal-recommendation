@@ -4,10 +4,15 @@ import torchvision.transforms as transforms
 import torch
 import random
 import time
+import os
+import pandas as pd
+import numpy as np
+import json
+import pickle
 
 def load_data(data_path, feature_type):
     start = time.time()
-    feature_dir = os.path.join(data_path,'../')
+    feature_dir = os.path.join(data_path, '../')
     train_df = pd.read_feather(os.path.join(data_path, 'train_positive.ftr'))
     test_df = pd.read_feather(os.path.join(data_path, 'test_positive.ftr'))
     train_ng_pool = pd.read_feather(os.path.join(data_path, 'train_negative.ftr'))
@@ -15,22 +20,22 @@ def load_data(data_path, feature_type):
 
     train_df = train_df.astype('int64')
     test_df = test_df.astype('int64')
-    train_df.rename(columns={"userid":"userID","train_pos":"itemID"}, inplace=True)
-    test_df.rename(columns={"userid":"userID","test_pos":"itemID"}, inplace=True)
+    train_df.rename(columns={"userid": "userID", "train_pos": "itemID"}, inplace=True)
+    test_df.rename(columns={"userid": "userID", "test_pos": "itemID"}, inplace=True)
     train_ng_pool = train_ng_pool["train_negative"].tolist()
     test_negative = test_negative["test_negative"].tolist()
 
-    index_info = pd.read_csv(os.path.join(data_path,'../index-info/item_index.csv'))
-    num_user = max(train_df["userID"])+1
-    num_item = max(train_df["itemID"])+1
+    index_info = pd.read_csv(os.path.join(data_path, '../index-info/item_index.csv'))
+    num_user = max(train_df["userID"]) + 1
+    num_item = max(train_df["itemID"]) + 1
 
     id_list = index_info["itemid"].tolist()
 
-    with open(os.path.join(feature_dir,"item_meta.json"), "rb") as f:
+    with open(os.path.join(feature_dir, "item_meta.json"), "rb") as f:
         meta_data = json.load(f)
     with open(os.path.join(feature_dir, 'text_feature_vec.pickle'), 'rb') as f:
         text_vec = pickle.load(f)
-    image_path_list = [] 
+    image_path_list = []
     t_features = []
     for item_id in id_list:
         t_features.append(text_vec[item_id])
@@ -38,22 +43,22 @@ def load_data(data_path, feature_type):
         image_path_list.append(os.path.abspath(os.path.join(feature_dir, img_path)))
 
     t_features = np.array(t_features)
-    t_features = dict(enumerate(t_features,0))
+    t_features = dict(enumerate(t_features, 0))
     image_path_list = np.array(image_path_list)
     images = []
 
     if feature_type == "all" or feature_type == "img":
-        transform = transforms.Compose([transforms.Resize((224,224)),
+        transform = transforms.Compose([transforms.Resize((224, 224)),
                                         transforms.ToTensor(),
-                                        transforms.Normalize((0.5,),(0.5,))])
+                                        transforms.Normalize((0.5,), (0.5,))])
         for i in range(len(image_path_list)):
             img = Image.open(image_path_list[i]).convert("RGB")
             img = transform(img)
             images.append(img)
         images = torch.stack(images)
-        #images = dict(enumerate(images,0))
-    
-    print(f"Data Loaded. num user : {num_user} num item : {num_item} {time.time()-start:.4f} sec")
+        # images = dict(enumerate(images,0))
+
+    print(f"Data Loaded. num user : {num_user} num item : {num_item} {time.time() - start:.4f} sec")
     return train_df, test_df, train_ng_pool, test_negative, num_user, num_item, t_features, images
 
 
@@ -73,12 +78,12 @@ class CustomDataset(Dataset):
     label = [N] 1 for positive, 0 for negative
     '''
 
-    def __init__(self, dataset, text_feature, images, negative, num_neg=4, istrain=False, feature_type = "all"):
+    def __init__(self, dataset, text_feature, images, negative, num_neg=4, istrain=False, feature_type="all"):
         super(CustomDataset, self).__init__()
-        self.dataset = dataset # df
-        self.text_feature = text_feature # dictionary(np)
-        self.images = images # dictionary(tensor)
-        self.negative = np.array(negative) # list->np
+        self.dataset = dataset  # df
+        self.text_feature = text_feature  # dictionary(np)
+        self.images = images  # dictionary(tensor)
+        self.negative = np.array(negative)  # list->np
         self.istrain = istrain
         self.num_neg = num_neg
         self.feature_type = feature_type
@@ -93,9 +98,9 @@ class CustomDataset(Dataset):
         users = np.unique(self.dataset["userID"])
         test_dataset = []
         for user in users:
-            if type(self.negative[user])==list:
+            if type(self.negative[user]) == list:
                 test_negative = self.negative[user]
-            elif type(self.negative[user])==np.ndarray:
+            elif type(self.negative[user]) == np.ndarray:
                 test_negative = self.negative[user].tolist()
             test_positive = self.dataset[self.dataset["userID"] == user]["itemID"].tolist()
             item = test_positive + test_negative
@@ -115,16 +120,16 @@ class CustomDataset(Dataset):
             user, item_p = self.dataset[index]
             # Negative sampling
             ng_pool = np.array(self.negative[user])
-            idx = np.random.choice(len(ng_pool),self.num_neg,replace=False)
-            #idx = random.sample(list(range(0,len(ng_pool))), self.num_neg)
+            idx = np.random.choice(len(ng_pool), self.num_neg, replace=False)
+            # idx = random.sample(list(range(0,len(ng_pool))), self.num_neg)
             item_n = ng_pool[idx].tolist()
 
             ####
             item_idx = item_n.copy()
-            item_idx.insert(0,item_p)
+            item_idx.insert(0, item_p)
 
-            t_feature_p, t_feature_n, img_p, img_n = 0.0, 0.0, torch.Tensor([0.0]), torch.Tensor([0.0])
-            
+            t_feature_p, t_feature_n, img_p, img_n = 0.0, [0.0,0.0,0.0,0.0], torch.Tensor([0.0]), torch.zeros(self.num_neg,1)
+
             if self.feature_type == "txt" or self.feature_type == "all":
                 # t_feature = self.text_feature[item_idx]
                 t_feature = []
@@ -146,14 +151,14 @@ class CustomDataset(Dataset):
         else:
             user, item, label = self.dataset[index]
 
-            t_feature, img = 0.0, torch.Tensor([0.0])
+            t_feature, img = [0.0], torch.Tensor([0.0])
 
             if self.feature_type == "txt" or self.feature_type == "all":
                 t_feature = []
                 for i in item:
                     t_feature.append(self.text_feature[i])
                 t_feature = np.array(t_feature)
-            
+
             if self.feature_type == "img" or self.feature_type == "all":
                 img = []
                 for j in item:
