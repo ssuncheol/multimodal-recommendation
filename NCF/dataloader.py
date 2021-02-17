@@ -41,7 +41,7 @@ class UserItemTrainDataset(Dataset):
         elif self.text_dict is not None:
             for i in negative_items:
                 negative_txt.append(self.text_dict[self.items[i].item()])
-            return np.concatenate((negative_users, [self.users[index]])), np.concatenate((negative_items, [self.items[index]])), np.concatenate((negative_ratings, [self.ratings[index]])), torch.cat((torch.FloatTensor(negative_text), torch.FloatTensor(self.text_dict[self.item_tensor[index].item()].unsqueeze(0))))
+            return np.concatenate((negative_users, [self.users[index]])), np.concatenate((negative_items, [self.items[index]])), np.concatenate((negative_ratings, [self.ratings[index]])), torch.cat((torch.FloatTensor(negative_txt), torch.FloatTensor(self.text_dict[self.item_tensor[index].item()].unsqueeze(0))))
         else:
             return np.concatenate((negative_users, [self.users[index]])), np.concatenate((negative_items, [self.items[index]])), np.concatenate((negative_ratings, [self.ratings[index]]))
         
