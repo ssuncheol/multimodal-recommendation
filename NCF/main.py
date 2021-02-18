@@ -238,7 +238,7 @@ def main():
         with experiment.train():
             print('Epoch {} starts !'.format(epoch+1))
             print('-' * 80)
-            # model.train()
+            model.train()
             total_loss = 0
             t1 = time.time()
             for batch_id, batch in enumerate(train_loader):
