@@ -41,40 +41,12 @@ class UserItemTrainDataset(Dataset):
         elif self.text_dict is not None:
             for i in negative_items:
                 negative_txt.append(self.text_dict[self.items[i].item()])
-            return np.concatenate((negative_users, [self.users[index]])), np.concatenate((negative_items, [self.items[index]])), np.concatenate((negative_ratings, [self.ratings[index]])), torch.cat((torch.FloatTensor(negative_txt), torch.FloatTensor(self.text_dict[self.item_tensor[index].item()].unsqueeze(0))))
+            return np.concatenate((negative_users, [self.users[index]])), np.concatenate((negative_items, [self.items[index]])), np.concatenate((negative_ratings, [self.ratings[index]])), torch.cat((torch.FloatTensor(negative_txt), torch.FloatTensor(self.text_dict[self.items[index].item()].unsqueeze(0))))
         else:
             return np.concatenate((negative_users, [self.users[index]])), np.concatenate((negative_items, [self.items[index]])), np.concatenate((negative_ratings, [self.ratings[index]]))
         
     def __len__(self):
         return len(self.users)
-
-class UserItemRatingDataset(Dataset):
-    def __init__(self, user_tensor, item_tensor, target_tensor, **kwargs):
-        
-        self.user_tensor = user_tensor
-        self.item_tensor = item_tensor
-        self.target_tensor = target_tensor
-        
-        self.image_dict = None
-        self.text_dict = None
-        if 'image' in kwargs.keys() :
-            self.image_dict = kwargs['image']
-
-        if 'text' in kwargs.keys():
-            self.text_dict = kwargs['text']
-
-    def __getitem__(self, index): 
-        if (self.image_dict is not None) & (self.text_dict is not None):
-            return self.user_tensor[index], self.item_tensor[index], self.target_tensor[index], torch.FloatTensor(self.image_dict[self.item_tensor[index].item()]), torch.FloatTensor(self.text_dict[self.item_tensor[index].item()])
-        elif self.image_dict is not None:
-            return self.user_tensor[index], self.item_tensor[index], self.target_tensor[index], torch.FloatTensor(self.image_dict[self.item_tensor[index].item()])
-        elif self.text_dict is not None:
-            return self.user_tensor[index], self.item_tensor[index], self.target_tensor[index], torch.FloatTensor(self.text_dict[self.item_tensor[index].item()])
-        else:
-            return self.user_tensor[index], self.item_tensor[index], self.target_tensor[index]
-
-    def __len__(self):
-        return self.user_tensor.size(0)
 
 class Make_Dataset(object):
     def __init__(self, df_test_p, df_test_n):
