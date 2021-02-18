@@ -31,8 +31,6 @@ def reduce_tensor(tensor, world_size):
     return rt
 
 def init_process(rank, world_size, backend='nccl'):
-    os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '33500'
     dist.init_process_group(backend, rank=rank, world_size=world_size)
 
 # model 저장 함수
@@ -124,6 +122,7 @@ def get_args():
     return args
 def main(rank, args):
     
+    print(rank)
     # 사용할 쥐피유 개수만큼 아이디가 옴. 3개쓰면 0,1,2.
     torch.cuda.set_device(rank)
 
@@ -145,8 +144,8 @@ def main(rank, args):
         "interval":args.interval
     }
 
-    if dist.get_rank() == 0:
-        experiment = Experiment(api_key="Bc3OhH0UQZebqFKyM77eLZnAm",project_name='data distributed parallel', auto_output_logging="default")
+    if rank == 0:
+        experiment = Experiment(api_key="Bc3OhH0UQZebqFKyM77eLZnAm",project_name='data distributed parallel')
         experiment.log_parameters(hyper_params)
     else:
         experiment=Experiment(api_key="Bc3OhH0UQZebqFKyM77eLZnAm",disabled=True)
@@ -169,6 +168,7 @@ def main(rank, args):
     if args.image:
         # raw image를 쓸 것인지, 전처리 해놓은 feature vector를 쓸 지.
         if args.feature == 'raw':
+            img_dict = img_dict
             transform = transforms.Compose([transforms.Resize((224, 224)), 
                                             transforms.ToTensor(), 
                                             transforms.Normalize((0.5,), (0.5,))])
@@ -238,7 +238,7 @@ def main(rank, args):
         print("IMAGE MODEL")
         model = NeuralCF(num_users=num_user, num_items=num_item, 
                         embedding_size=args.latent_dim_mf, dropout=args.drop_rate,
-                        num_layers=args.num_layers, feature=args.feature, image=image_shape, extractor_path=args.extractor_path)  
+                        num_layers=args.num_layers, feature=args.feature, image=image_shape, extractor_path=args.extractor_path, rank=rank)  
     
     elif args.text:
         print("TEXT MODEL")
@@ -252,7 +252,6 @@ def main(rank, args):
                         embedding_size=args.latent_dim_mf, dropout=args.drop_rate,
                         num_layers=args.num_layers, feature=args.feature)
     
-    # model = nn.DataParallel(model)
     model = model.cuda(rank)
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[rank])
     print('model 생성 완료.')
@@ -270,20 +269,20 @@ def main(rank, args):
     # train loader 생성
     if (args.image) & (args.text):               
         train_dataset = UserItemTrainDataset(df_train_p, df_train_n, args.num_neg, image=img_dict, text=txt_dict)
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, rank=rank, num_replicas=args.world_size)
-        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4, collate_fn=my_collate_trn_2, pin_memory = True, sampler=train_sampler)
+        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, rank=rank, num_replicas=args.world_size, shuffle=True)
+        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4, collate_fn=my_collate_trn_2, pin_memory=True, sampler=train_sampler)
     elif args.image:              
         train_dataset = UserItemTrainDataset(df_train_p, df_train_n, args.num_neg, image=img_dict)
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, rank=rank, num_replicas=args.world_size)
-        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4, collate_fn=my_collate_trn_1, pin_memory = True, sampler=train_sampler)
+        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, rank=rank, num_replicas=args.world_size, shuffle=True)
+        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4, collate_fn=my_collate_trn_1, pin_memory=True, sampler=train_sampler)
     elif args.text:           
         train_dataset = UserItemTrainDataset(df_train_p, df_train_n, args.num_neg, text=txt_dict)
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, rank=rank, num_replicas=args.world_size)
-        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4, collate_fn=my_collate_trn_1, pin_memory = True, sampler=train_sampler)
+        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, rank=rank, num_replicas=args.world_size, shuffle=True)
+        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4, collate_fn=my_collate_trn_1, pin_memory=True, sampler=train_sampler)
     else :                
         train_dataset = UserItemTrainDataset(df_train_p, df_train_n, args.num_neg)
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, rank=rank, num_replicas=args.world_size)
-        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4, collate_fn=my_collate_trn_0, pin_memory = True, sampler=train_sampler)
+        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, rank=rank, num_replicas=args.world_size, shuffle=True)
+        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4, collate_fn=my_collate_trn_0, pin_memory=True, sampler=train_sampler)
     print('dataloader 생성 완료.')
     step = 0
     # train 및 eval 시작
@@ -300,18 +299,18 @@ def main(rank, args):
             optim.zero_grad()
             if (args.image) & (args.text):
                 users, items, ratings, image, text = batch[0], batch[1], batch[2], batch[3], batch[4]             
-                users, items, ratings, image, text = users.cuda(dist.get_rank()), items.cuda(dist.get_rank()), ratings.cuda(dist.get_rank()), image.cuda(dist.get_rank()), text.cuda(dist.get_rank())    
+                users, items, ratings, image, text = users.cuda(non_blocking=True), items.cuda(non_blocking=True), ratings.cuda(non_blocking=True), image.cuda(non_blocking=True), text.cuda(non_blocking=True)    
             elif args.image: 
                 users, items, ratings, image = batch[0], batch[1], batch[2], batch[3]                  
-                users, items, ratings, image = users.cuda(dist.get_rank()), items.cuda(dist.get_rank()), ratings.cuda(dist.get_rank()), image.cuda(dist.get_rank())
+                users, items, ratings, image = users.cuda(non_blocking=True), items.cuda(non_blocking=True), ratings.cuda(non_blocking=True), image.cuda(non_blocking=True)
                 text = None
             elif args.text:                   
                 users, items, ratings, text = batch[0], batch[1], batch[2], batch[3]
-                users, items, ratings, text = users.cuda(dist.get_rank()), items.cuda(dist.get_rank()), ratings.cuda(dist.get_rank()), text.cuda(dist.get_rank())
+                users, items, ratings, text = users.cuda(non_blocking=True), items.cuda(non_blocking=True), ratings.cuda(non_blocking=True), text.cuda(non_blocking=True)
                 image = None
             else :                   
                 users, items, ratings = batch[0], batch[1], batch[2]
-                users, items, ratings = users.cuda(dist.get_rank()), items.cuda(dist.get_rank()), ratings.cuda(dist.get_rank())
+                users, items, ratings = users.cuda(non_blocking=True), items.cuda(non_blocking=True), ratings.cuda(non_blocking=True)
                 image = None
                 text = None
     
@@ -331,40 +330,40 @@ def main(rank, args):
                 loss.backward()
                 optim.step()
             
-            experiment.log_metric('epoch loss', rd_train_loss.item(), epoch=epoch+1)
-        if dist.get_rank() == 0:    
-            t2 = time.time()
-            print("train : ", t2 - t1) 
+            experiment.log_metric('batch loss', rd_train_loss.item(), epoch=epoch+1)
+        # if rank == 0:    
+        t2 = time.time()
+        print("train : ", t2 - t1) 
         if (epoch + 1) % args.interval == 0:
             # with experiment.test():
-            engine = Engine(args.top_k)
+            engine = Engine(args.top_k, rank)
             t3 = time.time()
             if (args.image) & (args.text):            
                 test_dataset = UserItemtestDataset(eval_dataset, image=img_dict, text=txt_dict)
                 test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4,
-                                collate_fn=my_collate_tst_2, pin_memory =True)
+                                collate_fn=my_collate_tst_2, pin_memory=True)
                 hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, image=img_dict, text=txt_dict, eval=args.eval, interval=args.interval)
             elif args.image:
                 test_dataset = UserItemtestDataset(eval_dataset, image=img_dict)
                 test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4,
-                                collate_fn=my_collate_tst_1, pin_memory =True)
+                                collate_fn=my_collate_tst_1, pin_memory=True)
                 hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, image=img_dict, eval=args.eval, interval=args.interval)
             elif args.text:
                 test_dataset = UserItemtestDataset(eval_dataset, text=txt_dict)
                 test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4,
-                                collate_fn=my_collate_tst_1, pin_memory =True)
+                                collate_fn=my_collate_tst_1, pin_memory=True)
                 hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, text=txt_dict, eval=args.eval, interval=args.interval)                
             else:
                 test_dataset = UserItemtestDataset(eval_dataset)
                 test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4,
-                                collate_fn=my_collate_tst_0, pin_memory =True)
+                                collate_fn=my_collate_tst_0, pin_memory=True)
                 hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, eval=args.eval, interval=args.interval)  
-            if dist.get_rank() == 0:
-                t4 = time.time()
-                print('test:', t4 - t3) 
-            
-                ckpt_dir = '%s/ckpt_dir' % args.path
-                save(ckpt_dir, model, optim, args.interval, args.feature)
+            # if rank == 0:
+            t4 = time.time()
+            print('test:', t4 - t3) 
+        
+            ckpt_dir = '%s/ckpt_dir' % args.path
+            save(ckpt_dir, model, optim, args.interval, args.feature)
             experiment.log_metrics({"epoch" : epoch,
                             "HR" : hit_ratio,
                             "HR2" : hit_ratio2,
@@ -375,6 +374,8 @@ def main(rank, args):
 if __name__ == '__main__':
     args = get_args()
     args.world_size = args.gpu
-    
-    mp.spawn(main, nprocs=args.world_size, args=(args,), join=True)
+
+    os.environ['MASTER_ADDR'] = '127.0.0.1'
+    os.environ['MASTER_PORT'] = '8888'
+    mp.spawn(main, nprocs=args.world_size, args=(args, ), join=True)
         
