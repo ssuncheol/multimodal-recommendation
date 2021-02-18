@@ -145,10 +145,10 @@ def main(rank, args):
     }
 
     if rank == 0:
-        experiment = Experiment(api_key="Bc3OhH0UQZebqFKyM77eLZnAm",project_name='data distributed parallel')
+        experiment = Experiment(project_name='data distributed parallel')
         experiment.log_parameters(hyper_params)
     else:
-        experiment=Experiment(api_key="Bc3OhH0UQZebqFKyM77eLZnAm",disabled=True)
+        experiment=Experiment(disabled=True)
     
     # data load 
     df_train_p = pd.read_feather("%s/%s/train_positive.ftr" % (args.path, args.eval))
@@ -199,7 +199,6 @@ def main(rank, args):
     
     # data 전처리
     MD = Make_Dataset(df_test_p, df_test_n)
-    # user, item, rating = MD.trainset
     eval_dataset = MD.evaluate_data
     
     print('data 전처리 완료.')
@@ -284,7 +283,7 @@ def main(rank, args):
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, rank=rank, num_replicas=args.world_size, shuffle=True)
         train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4, collate_fn=my_collate_trn_0, pin_memory=True, sampler=train_sampler)
     print('dataloader 생성 완료.')
-    step = 0
+    
     # train 및 eval 시작
     for epoch in range(args.epochs):
         # with experiment.train():
@@ -362,8 +361,8 @@ def main(rank, args):
             t4 = time.time()
             print('test:', t4 - t3) 
         
-            ckpt_dir = '%s/ckpt_dir' % args.path
-            save(ckpt_dir, model, optim, args.interval, args.feature)
+            # ckpt_dir = '%s/ckpt_dir' % args.path
+            # save(ckpt_dir, model, optim, args.interval, args.feature)
             experiment.log_metrics({"epoch" : epoch,
                             "HR" : hit_ratio,
                             "HR2" : hit_ratio2,
