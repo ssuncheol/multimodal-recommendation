@@ -3,11 +3,17 @@ import time
 from metric import get_performance
 import numpy as np
 import torch.distributed as dist
-# from main import reduce_tensor
+
+def reduce_tensor(tensor, world_size):
+    rt = tensor.clone()
+    dist.all_reduce(rt, op=dist.ReduceOp.SUM)
+    rt /= world_size
+    return rt
+
 class Engine(object):
-    def __init__(self, top_k):
+    def __init__(self, top_k, rank):
         self.top_k = top_k
-        
+        self.rank = rank
     def evaluate(self, model, test_loader, epoch_id, **kwargs):
         #Evaluate model
         t0 = time.time()
@@ -22,21 +28,21 @@ class Engine(object):
                 if ('image' in kwargs.keys()) & ('text' in kwargs.keys()):
                     user, item, image_f, text_f, label = data
                     user, item, image_f, text_f, label = user.squeeze(0), item.squeeze(0), image_f.squeeze(0), text_f.squeeze(0), label.squeeze(0)
-                    user, item, image_f, text_f, label = user.cuda(dist.get_rank()), item.cuda(dist.get_rank()), image_f.cuda(dist.get_rank()), text_f.cuda(dist.get_rank()), label.cuda(dist.get_rank())
+                    user, item, image_f, text_f, label = user.cuda(non_blocking=True), item.cuda(non_blocking=True), image_f.cuda(non_blocking=True), text_f.cuda(non_blocking=True), label.cuda(non_blocking=True)
                 elif 'image' in kwargs.keys():
                     user, item, image_f, label = data
                     user, item, image_f, label = user.squeeze(0), item.squeeze(0), image_f.squeeze(0), label.squeeze(0)
-                    user, item, image_f, label = user.cuda(dist.get_rank()), item.cuda(dist.get_rank()), image_f.cuda(dist.get_rank()), label.cuda(dist.get_rank())
+                    user, item, image_f, label = user.cuda(non_blocking=True), item.cuda(non_blocking=True), image_f.cuda(non_blocking=True), label.cuda(non_blocking=True)
                     text_f = None
                 elif 'text' in kwargs.keys():
                     user, item, text_f, label = data
                     user, item, text_f, label = user.squeeze(0), item.squeeze(0), text_f.squeeze(0), label.squeeze(0)
-                    user, item, text_f, label = user.cuda(dist.get_rank()), item.cuda(dist.get_rank()), text_f.cuda(dist.get_rank()), label.cuda(dist.get_rank())
+                    user, item, text_f, label = user.cuda(non_blocking=True), item.cuda(non_blocking=True), text_f.cuda(non_blocking=True), label.cuda(non_blocking=True)
                     image_f = None
                 else:
                     user, item, label = data
                     user, item, label = user.squeeze(0), item.squeeze(0), label.squeeze(0)
-                    user, item, label = user.cuda(dist.get_rank()), item.cuda(dist.get_rank()), label.cuda(dist.get_rank())
+                    user, item, label = user.cuda(non_blocking=True), item.cuda(non_blocking=True), label.cuda(non_blocking=True)
                     image_f = None
                     text_f = None
                 
@@ -46,7 +52,7 @@ class Engine(object):
                 recommends = torch.take(item, indices).cpu().numpy()
                 gt_item = item[pos_idx].cpu().numpy()
                 performance = get_performance(gt_item, recommends.tolist())
-                performance = torch.tensor(performance).cuda(dist.get_rank())
+                performance = torch.tensor(performance).cuda(self.rank)
 
                 rd_hr = reduce_tensor(performance[0].data, dist.get_world_size())
                 rd_hr2 = reduce_tensor(performance[1].data, dist.get_world_size())
@@ -60,10 +66,10 @@ class Engine(object):
                 hr2_list.append(rd_hr2.item())
                 ndcg_list.append(rd_ndcg.item())
 
-        if dist.get_rank() == 0:
-            hit_ratio, hit_ratio2, ndcg = np.mean(hr_list), np.mean(hr2_list), np.mean(ndcg_list)
-            print('[Evluating Epoch {}] HR = {:.4f}, HR2 = {:.4f}, NDCG = {:.4f}'.format(epoch_id+1, hit_ratio, hit_ratio2, ndcg))
-            
-            t1 = time.time()
-            print("evaluate time:", t1 - t0)  
+        # if self.rank == 0:
+        hit_ratio, hit_ratio2, ndcg = np.mean(hr_list), np.mean(hr2_list), np.mean(ndcg_list)
+        print('[Evluating Epoch {}] HR = {:.4f}, HR2 = {:.4f}, NDCG = {:.4f}'.format(epoch_id+1, hit_ratio, hit_ratio2, ndcg))
+        
+        t1 = time.time()
+        print("evaluate time:", t1 - t0)  
         return hit_ratio, hit_ratio2, ndcg
