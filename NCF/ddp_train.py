@@ -172,10 +172,10 @@ def main(rank, args):
     }
 
     if rank == 0:
-        experiment = Experiment(api_key="Bc3OhH0UQZebqFKyM77eLZnAm",project_name='data distributed parallel')
+        experiment = Experiment(project_name='data distributed parallel')
         experiment.log_parameters(hyper_params)
     else:
-        experiment=Experiment(api_key="Bc3OhH0UQZebqFKyM77eLZnAm",disabled=True)
+        experiment=Experiment(disabled=True)
     
     # data load 
     df_train_p = pd.read_feather("%s/%s/train_positive.ftr" % (args.path, args.eval))
