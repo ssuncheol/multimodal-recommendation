@@ -10,11 +10,12 @@ def reduce_tensor(tensor, world_size):
     return rt
 
 class Engine(object):
-    def __init__(self, top_k, item_num_dict, max, num_user):
+    def __init__(self, top_k, item_num_dict, max, num_user, rank):
         self.top_k = top_k
         self.item_num_dict = item_num_dict
         self.max = max # test item 개수의 최대값
         self.num_user = num_user
+        self.rank = rank
     def evaluate(self, model, test_loader, epoch_id, **kwargs):
         #Evaluate model
         t0 = time.time()
