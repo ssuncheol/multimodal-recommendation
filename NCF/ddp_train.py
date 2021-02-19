@@ -8,10 +8,10 @@ import torch.nn as nn
 import argparse
 import time
 import random
-from dataloader2 import Make_Dataset, UserItemtestDataset, UserItemTrainDataset
+from dataloader import Make_Dataset, UserItemtestDataset, UserItemTrainDataset
 from utils import optimizer
-from model2 import NeuralCF
-from evaluate2 import Engine
+from model import NeuralCF
+from evaluate import Engine
 from torch.utils.data import DataLoader
 from PIL import Image
 import torchvision.transforms as transforms
@@ -70,7 +70,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--path',
                 type=str,
-                default='/daintlab/data/recommendation/Amazon-office-raw',
+                default='/daintlab/data/recommend/Amazon-office-raw',
                 help='path')
     parser.add_argument('--top_k',
                 type=int,
@@ -138,7 +138,7 @@ def get_args():
                 help='evaluation interval')
     parser.add_argument('--extractor_path',
                 type=str,
-                default='/daintlab/data/recommendation/Amazon-office-raw/resnet18.pth',
+                default='/daintlab/data/recommend/Amazon-office-raw/resnet18.pth',
                 help='path of feature extractor(pretrained model)')
     parser.add_argument('--amp',
                 type=bool,
