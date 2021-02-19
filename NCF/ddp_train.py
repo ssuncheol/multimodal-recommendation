@@ -7,19 +7,44 @@ import torch.nn as nn
 import argparse
 import time
 import random
-from dataloader import Make_Dataset, UserItemtestDataset, UserItemTrainDataset
+from dataloader2 import Make_Dataset, UserItemtestDataset, UserItemTrainDataset
 from utils import optimizer
-from model import NeuralCF
-from evaluate import Engine
+from model2 import NeuralCF
+from evaluate2 import Engine
 from torch.utils.data import DataLoader
 from PIL import Image
 import torchvision.transforms as transforms
-from collate import my_collate_trn_0, my_collate_trn_1, my_collate_trn_2, my_collate_tst_0, my_collate_tst_1, my_collate_tst_2 
 import torch.distributed as dist
 import torch.multiprocessing as mp
 
 # import warnings
 # warnings.filterwarnings("ignore")
+def my_collate_trn(batch):
+    user = [element for items in batch for element in items[0]]
+    user = torch.LongTensor(user)
+    item = [element for items in batch for element in items[1]]
+    item = torch.LongTensor(item)
+    rating = [element for items in batch for element in items[2]]
+    rating = torch.FloatTensor(rating)
+    ## feature가 1개일 때.
+    if len(batch[0]) == 4:
+        feature = [element for items in batch for element in items[3]]
+        if type(feature[0]) == type(torch.Tensor([])):
+            feature = torch.stack(feature)
+        else:
+            feature = torch.Tensor(feature)
+        return [user, item, rating, feature]
+    ## feature가 2개일 때.
+    if len(batch[0]) == 5:
+        image = [element for items in batch for element in items[3]]
+        if type(image[0]) == type(torch.Tensor([])):
+            image = torch.stack(image)
+        else:
+            image = torch.Tensor(image)
+        text = [element for items in batch for element in items[4]]
+        text = torch.Tensor(text)
+        return [user, item, rating, image, text]
+    return [user, item, rating]
 
 def cleanup():
     dist.destroy_process_group()
@@ -122,6 +147,7 @@ def get_args():
     return args
 def main(rank, args):
     
+    # rank = rank + 6
     print(rank)
     # 사용할 쥐피유 개수만큼 아이디가 옴. 3개쓰면 0,1,2.
     torch.cuda.set_device(rank)
@@ -157,100 +183,68 @@ def main(rank, args):
     df_test_n = pd.read_feather("%s/%s/test_negative.ftr" % (args.path, args.eval))
     user_index_info = pd.read_csv("%s/index-info/user_index.csv" % args.path)
     item_index_info = pd.read_csv("%s/index-info/item_index.csv" % args.path)
-
+    
     user_index_dict = {}
     item_index_dict = {}
-    img_dict = {}
-    txt_dict = {}
     
-    print('data loading 완료.')
+    img_dict = None
+    txt_dict = None
+    
+    image_shape = None
+    text_shape = None
     # image 쓸 건가
     if args.image:
+        img_dict = {}
+        image_shape = 512
         # raw image를 쓸 것인지, 전처리 해놓은 feature vector를 쓸 지.
         if args.feature == 'raw':
-            img_dict = img_dict
             transform = transforms.Compose([transforms.Resize((224, 224)), 
                                             transforms.ToTensor(), 
                                             transforms.Normalize((0.5,), (0.5,))])
             img_list = os.listdir('%s/image' % args.path)
             for i in img_list:
-                img_dict[item_index_info[item_index_info['itemid'] == i.split('.')[0]]['itemidx'].item()] = transform(Image.open(os.path.join('%s/image/%s' % (args.path, i))).convert('RGB'))
+                if item_index_info['itemid'].dtype == item_index_info['itemidx'].dtype:
+                    try: # item 개수는 18316개이고 이미지는 18371개라 없는거 빼는 작업
+                        img_dict[item_index_info[item_index_info['itemid'] == int(i.split('.')[0])]['itemidx'].item()] = transform(Image.open(os.path.join('%s/image/%s' % (args.path, i))).convert('RGB'))
+                    except:
+                        continue
+                else:
+                    try:
+                        img_dict[item_index_info[item_index_info['itemid'] == i.split('.')[0]]['itemidx'].item()] = transform(Image.open(os.path.join('%s/image/%s' % (args.path, i))).convert('RGB'))
+                    except:
+                        continue
         else:
             img_feature = pd.read_pickle('%s/image_feature_vec.pickle' % args.path)
             for i, j in zip(item_index_info['itemidx'], item_index_info['itemid']):
                 item_index_dict[i] = j
             for i in item_index_dict.keys():
-                img_dict[i] = img_feature[item_index_dict[i]]
-        
-        print('image 불러오기 완료.')
+                img_dict[i] = img_feature[item_index_dict[i]] 
     # text 쓸 건가
     if args.text:
+        txt_dict = {}
+        text_shape = 300
         txt_feature = pd.read_pickle('%s/text_feature_vec.pickle' % args.path)
         for i, j in zip(item_index_info['itemidx'], item_index_info['itemid']):
             item_index_dict[i] = j
         for i in item_index_dict.keys():
             txt_dict[i] = txt_feature[item_index_dict[i]]
-        print('text 불러오기 완료.')
+      
     num_user = df_train_p['userid'].nunique()
     num_item = item_index_info.shape[0]
+    
+    print('num of user ', num_user)
+    print('num of item ', num_item)
 
-    image_shape = 512
-    text_shape =300
-    
     # data 전처리
+    dt = time.time()
     MD = Make_Dataset(df_test_p, df_test_n)
-    eval_dataset = MD.evaluate_data
-    
-    print('data 전처리 완료.')
-    
-    # ########### raw랑 pre랑 test 해보자 ##################
-    # def load(ckpt_dir, net):
-    #     dict_model = torch.load('%s/%s' % (ckpt_dir, 'model_epoch10_raw.pth'))
-    #     net.load_state_dict(dict_model['net'])
-    
-    #     return net
-    # model = NeuralCF(num_users=num_user, num_items=num_item, 
-    #                     embedding_size=args.latent_dim_mf, dropout=args.drop_rate,
-    #                     num_layers=args.num_layers, feature=args.feature, image=image_shape, extractor_path=args.extractor_path)  
-    # # model = nn.DataParallel(model)
-    # model = model.cuda()
-    # ckpt_dir = '%s/ckpt_dir' % args.path
-    # test_dataset = UserItemtestDataset(eval_dataset, image=img_dict)
-    # test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=3,
-    #                 collate_fn=my_collate_tst_1, pin_memory=True)
-    # model = load(ckpt_dir, model)
-    # engine = Engine(args.top_k)
-    # epoch = 0
-    # hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, image=img_dict, eval=args.eval, interval=args.interval)
-    # import pdb; pdb.set_trace()
-    # ###################################################
-    
+    test_u, test_i, item_num_dict = MD.evaluate_data
+    print('데이터 전처리', (time.time() - dt))
     
     #NCF model
-    if (args.image) & (args.text):
-        print("IMAGE TEXT MODEL")
-        model = NeuralCF(num_users=num_user, num_items=num_item, 
+    model = NeuralCF(num_users=num_user, num_items=num_item, 
                         embedding_size=args.latent_dim_mf, dropout=args.drop_rate,
-                        num_layers=args.num_layers, feature=args.feature, image=image_shape, text=text_shape, extractor_path=args.extractor_path)    
-    
-    elif args.image:
-        print("IMAGE MODEL")
-        model = NeuralCF(num_users=num_user, num_items=num_item, 
-                        embedding_size=args.latent_dim_mf, dropout=args.drop_rate,
-                        num_layers=args.num_layers, feature=args.feature, image=image_shape, extractor_path=args.extractor_path, rank=rank)  
-    
-    elif args.text:
-        print("TEXT MODEL")
-        model = NeuralCF(num_users=num_user, num_items=num_item, 
-                        embedding_size=args.latent_dim_mf, dropout=args.drop_rate,
-                        num_layers=args.num_layers, feature=args.feature, text=text_shape)  
-
-    else:
-        print("MODEL")
-        model = NeuralCF(num_users=num_user, num_items=num_item, 
-                        embedding_size=args.latent_dim_mf, dropout=args.drop_rate,
-                        num_layers=args.num_layers, feature=args.feature)
-    
+                        num_layers=args.num_layers, feature=args.feature, image=image_shape, text=text_shape, extractor_path=args.extractor_path, rank=rank)
     model = model.cuda(rank)
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[rank])
     print('model 생성 완료.')
@@ -265,25 +259,14 @@ def main(rank, args):
     # 사용하는 gpu수에 따라 batch size 조절
     args.batch_size = int(args.batch_size / args.world_size)
     
-    # train loader 생성
-    if (args.image) & (args.text):               
-        train_dataset = UserItemTrainDataset(df_train_p, df_train_n, args.num_neg, image=img_dict, text=txt_dict)
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, rank=rank, num_replicas=args.world_size, shuffle=True)
-        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4, collate_fn=my_collate_trn_2, pin_memory=True, sampler=train_sampler)
-    elif args.image:              
-        train_dataset = UserItemTrainDataset(df_train_p, df_train_n, args.num_neg, image=img_dict)
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, rank=rank, num_replicas=args.world_size, shuffle=True)
-        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4, collate_fn=my_collate_trn_1, pin_memory=True, sampler=train_sampler)
-    elif args.text:           
-        train_dataset = UserItemTrainDataset(df_train_p, df_train_n, args.num_neg, text=txt_dict)
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, rank=rank, num_replicas=args.world_size, shuffle=True)
-        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4, collate_fn=my_collate_trn_1, pin_memory=True, sampler=train_sampler)
-    else :                
-        train_dataset = UserItemTrainDataset(df_train_p, df_train_n, args.num_neg)
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, rank=rank, num_replicas=args.world_size, shuffle=True)
-        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4, collate_fn=my_collate_trn_0, pin_memory=True, sampler=train_sampler)
-    print('dataloader 생성 완료.')
+    # train, test loader 생성
+    train_dataset = UserItemTrainDataset(df_train_p, df_train_n, args.num_neg, image=img_dict, text=txt_dict)
+    train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, rank=rank, num_replicas=args.world_size, shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4, collate_fn=my_collate_trn, pin_memory =True, sampler=train_sampler)
+    test_dataset = UserItemtestDataset(test_u, test_i, image=img_dict, text=txt_dict)
+    test_loader = DataLoader(test_dataset, batch_size=args.batch_size * 5, shuffle=False, num_workers=4)
     
+    print('dataloader 생성 완료.')
     # train 및 eval 시작
     for epoch in range(args.epochs):
         # with experiment.train():
@@ -313,7 +296,6 @@ def main(rank, args):
                 image = None
                 text = None
     
-            step += 1
             if args.amp:  
                 with torch.cuda.amp.autocast():
                     output = model(users, items, image=image, text=text)
@@ -335,28 +317,11 @@ def main(rank, args):
         print("train : ", t2 - t1) 
         if (epoch + 1) % args.interval == 0:
             # with experiment.test():
-            engine = Engine(args.top_k, rank)
+            engine = Engine(args.top_k, rank, num_item, num_user)
             t3 = time.time()
-            if (args.image) & (args.text):            
-                test_dataset = UserItemtestDataset(eval_dataset, image=img_dict, text=txt_dict)
-                test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4,
-                                collate_fn=my_collate_tst_2, pin_memory=True)
-                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, image=img_dict, text=txt_dict, eval=args.eval, interval=args.interval)
-            elif args.image:
-                test_dataset = UserItemtestDataset(eval_dataset, image=img_dict)
-                test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4,
-                                collate_fn=my_collate_tst_1, pin_memory=True)
-                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, image=img_dict, eval=args.eval, interval=args.interval)
-            elif args.text:
-                test_dataset = UserItemtestDataset(eval_dataset, text=txt_dict)
-                test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4,
-                                collate_fn=my_collate_tst_1, pin_memory=True)
-                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, text=txt_dict, eval=args.eval, interval=args.interval)                
-            else:
-                test_dataset = UserItemtestDataset(eval_dataset)
-                test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4,
-                                collate_fn=my_collate_tst_0, pin_memory=True)
-                hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, eval=args.eval, interval=args.interval)  
+            engine = Engine(args.top_k, item_num_dict, num_item, num_user)
+            t3 = time.time()
+            hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, image=img_dict, text=txt_dict, eval=args.eval)
             # if rank == 0:
             t4 = time.time()
             print('test:', t4 - t3) 
