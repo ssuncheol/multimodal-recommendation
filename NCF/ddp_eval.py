@@ -3,6 +3,12 @@ import time
 from metric import get_performance
 import numpy as np
 
+def reduce_tensor(tensor, world_size):
+    rt = tensor.clone()
+    dist.all_reduce(rt, op=dist.ReduceOp.SUM)
+    rt /= world_size
+    return rt
+
 class Engine(object):
     def __init__(self, top_k, item_num_dict, max, num_user):
         self.top_k = top_k
@@ -24,21 +30,21 @@ class Engine(object):
                 if (kwargs['image'] is not None) & (kwargs['text'] is not None):
                     user, item, image_f, text_f = data
                     user, item, image_f, text_f = user.squeeze(1), item.squeeze(1), image_f.squeeze(1), text_f.squeeze(1)
-                    user, item, image_f, text_f = user.cuda(), item.cuda(), image_f.cuda(), text_f.cuda()
+                    user, item, image_f, text_f = user.cuda(non_blocking=True), item.cuda(non_blocking=True), image_f.cuda(non_blocking=True), text_f.cuda(non_blocking=True)
                 elif kwargs['image'] is not None:
                     user, item, image_f = data
                     user, item, image_f = user.squeeze(1), item.squeeze(1), image_f.squeeze(1)
-                    user, item, image_f = user.cuda(), item.cuda(), image_f.cuda()
+                    user, item, image_f = user.cuda(non_blocking=True), item.cuda(non_blocking=True), image_f.cuda(non_blocking=True)
                     text_f = None
                 elif kwargs['text'] is not None:
                     user, item, text_f = data
                     user, item, text_f = user.squeeze(1), item.squeeze(1), text_f.squeeze(1)
-                    user, item, text_f = user.cuda(), item.cuda(), text_f.cuda()
+                    user, item, text_f = user.cuda(non_blocking=True), item.cuda(non_blocking=True), text_f.cuda(non_blocking=True)
                     image_f = None
                 else:
                     user, item = data
                     user, item = user.squeeze(1), item.squeeze(1)
-                    user, item = user.cuda(), item.cuda()
+                    user, item = user.cuda(non_blocking=True), item.cuda(non_blocking=True)
                     image_f = None
                     text_f = None
                 
@@ -57,9 +63,15 @@ class Engine(object):
             recommends = indices.cpu().numpy()
             gt_item = np.array(range(self.item_num_dict[i]))
             performance = get_performance(gt_item, recommends.tolist())
-            hr_list.append(performance[0])
-            hr2_list.append(performance[1])
-            ndcg_list.append(performance[2])
+            performance = torch.tensor(performance).cuda(self.rank)
+
+            rd_hr = reduce_tensor(performance[0].data, dist.get_world_size())
+            rd_hr2 = reduce_tensor(performance[1].data, dist.get_world_size())
+            rd_ndcg = reduce_tensor(performance[2].data, dist.get_world_size())
+
+            hr_list.append(rd_hr.item())
+            hr2_list.append(rd_hr2.item())
+            ndcg_list.append(rd_ndcg.item())
             start = end
             
         hit_ratio, hit_ratio2, ndcg = np.mean(hr_list), np.mean(hr2_list), np.mean(ndcg_list)
@@ -68,3 +80,4 @@ class Engine(object):
         t1 = time.time()
         print("evaluate time:", t1 - t0)  
         return hit_ratio, hit_ratio2, ndcg
+        
