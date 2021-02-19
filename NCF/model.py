@@ -13,21 +13,22 @@ class NeuralCF(nn.Module):
         self.item_embedding_mlp = nn.Embedding(num_items, embedding_size)
         
         self.feature_extract = resnet_tv.resnet18()
-        if ('image' in kwargs.keys()):
+        if (kwargs['image'] is not None):
             print("IMAGE FEATURE")
             if self.feature == 'raw':
-                self.feature_extract.load_state_dict(torch.load(kwargs['extractor_path']))    
+                    # map_location = {'cuda:%d' % 6: 'cuda:%d' % kwargs['rank']}
+                self.feature_extract.load_state_dict(torch.load(kwargs['extractor_path'], map_location='cuda:%d' % kwargs['rank']))    
             self.feature_extract.eval()
             for param in self.feature_extract.parameters():
                 param.requires_grad = False
             self.image_embedding = nn.Linear(kwargs["image"], embedding_size) 
-        if ('text' in kwargs.keys()):
+        if (kwargs['text'] is not None):
             print("TEXT FEATURE")
             self.text_embedding = nn.Linear(kwargs["text"], embedding_size)
  
-        #mlp module 
+        # mlp module 
         MLP_modules = []
-        if ('image' in kwargs.keys()) & ('text' in kwargs.keys()):
+        if (kwargs['image'] is not None) & (kwargs['text'] is not None):
             print("MLP FEATURE 2")
             for i in range(num_layers):
                 input_size = 4 * embedding_size // (2 ** i)
@@ -35,7 +36,7 @@ class NeuralCF(nn.Module):
                 MLP_modules.append(nn.BatchNorm1d(input_size // 2))
                 MLP_modules.append(nn.ReLU())
                 MLP_modules.append(nn.Dropout(p=dropout))
-        elif ('image' in kwargs.keys()) | ('text' in kwargs.keys()):
+        elif (kwargs['image'] is not None) | (kwargs['text'] is not None):
             print("MLP FEATURE 1")
             for i in range(num_layers):
                 input_size = 3 * embedding_size // (2 ** i)
@@ -47,7 +48,7 @@ class NeuralCF(nn.Module):
             print("MLP FEATURE 0")
             for i in range(num_layers):
                 input_size = 2 * embedding_size // (2 ** i)  
-                MLP_modules.append(nn.Linear(input_size, input_size//2))
+                MLP_modules.append(nn.Linear(input_size, input_size // 2))
                 MLP_modules.append(nn.BatchNorm1d(input_size // 2))
                 MLP_modules.append(nn.ReLU())
                 MLP_modules.append(nn.Dropout(p=dropout))
@@ -55,9 +56,9 @@ class NeuralCF(nn.Module):
         self.MLP_layers =nn.Sequential(*MLP_modules)
         
         # Predict layer
-        if ('image' in kwargs.keys()) & ('text' in kwargs.keys()):
+        if (kwargs['image'] is not None) & (kwargs['text'] is not None):
             self.predict_layer = nn.Linear(embedding_size + 4 * (2 * int(embedding_size)) // (int(2 ** (num_layers - 1))) // 4, 1)
-        elif ('image' in kwargs.keys()) | ('text' in kwargs.keys()):
+        elif (kwargs['image'] is not None) | (kwargs['text'] is not None):
             self.predict_layer = nn.Linear(embedding_size + 3 * (2 * int(embedding_size)) // (int(2 ** (num_layers - 1))) // 4, 1)
         else:
             self.predict_layer = nn.Linear(embedding_size + (int(embedding_size)) // (int(2 ** (num_layers - 1))), 1)
