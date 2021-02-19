@@ -15,9 +15,9 @@ class UserItemTrainDataset(Dataset):
         self.df_train_n = df_train_n
         self.df_train_p = df_train_p
         self.num_neg = num_neg
-        if 'image' in kwargs.keys() :
+        if kwargs['image'] is not None:
             self.image_dict = kwargs['image']
-        if 'text' in kwargs.keys():
+        if kwargs['text'] is not None:
             self.text_dict = kwargs['text']
 
     def __getitem__(self, index):
@@ -50,61 +50,57 @@ class UserItemTrainDataset(Dataset):
 
 class Make_Dataset(object):
     def __init__(self, df_test_p, df_test_n):
-        # self.df_train_p = df_train_p
         self.df_test_p = df_test_p
         self.df_test_n = df_test_n
-        # self.trainset = self._trainset(df_train_p)
         self.evaluate_data = self._evaluate_data(df_test_p, df_test_n)
-  
-    # def _trainset(self, df_train_p):
-    #     user = np.array(df_train_p['userid'])
-    #     item = np.array(df_train_p['train_pos'])
-    #     rating = np.repeat(1, len(df_train_p['userid'])).reshape(-1)
-    #     return user, item, rating  
      
     def _evaluate_data(self, df_test_p, df_test_n):
-        eval_dataset = []
-        for u in df_test_p['userid'].unique():
-            test_positive_item = np.array(df_test_p[df_test_p['userid'] == u]['test_pos'])
-            test_negative_item = df_test_n[df_test_n['userid'] == u]['test_negative'].item()
-            test_item = test_positive_item.tolist() + test_negative_item.tolist()
-            label = np.zeros(len(test_item))
-            label[:len(test_positive_item)] = 1
-            test_user = np.ones(len(test_item)) * u
-            eval_dataset.append([test_user.tolist(), test_item, label.tolist()])
-        return eval_dataset
-    
+        test_pos_item_num = np.array(df_test_p.groupby(by=['userid'], as_index=False).count()['test_pos'])
+        item_num_dict = {}
+        df_test = pd.DataFrame({'userid':[], 'test_pos':[]})
+        user = []
+        item = []
+        for i in df_test_p['userid'].unique():
+            user.extend(df_test_p[df_test_p['userid'] == i]['userid'])
+            item.extend(df_test_p[df_test_p['userid'] == i]['test_pos'])
+            negative_item_list = df_test_n[df_test_n['userid'] == i]['test_negative'].item()
+            user_list = np.ones(len(negative_item_list)) * i
+            user.extend(user_list)
+            item.extend(negative_item_list)
+            item_num_dict[i] = test_pos_item_num[i] # 유저별 test positive item 개수 dictionary. key=userid, value=testpositive개수
+        return user, item, item_num_dict
 
 class UserItemtestDataset(Dataset):
-    def __init__(self, test_dataset, **kwargs):
-        self.image_dict2 = None
-        self.text_dict2 = None
-        self.test_dataset = test_dataset
+    def __init__(self, test_user, test_item, **kwargs):
+        self.image_dict = None
+        self.text_dict = None
+        self.test_user = test_user
+        self.test_item = test_item
 
-        if "image" in kwargs.keys():
-            self.image_dict2 = kwargs["image"]
-        if "text" in kwargs.keys():
-            self.text_dict2 = kwargs["text"]
+        if kwargs['image'] is not None:
+            self.image_dict = kwargs["image"]
+        if kwargs['text'] is not None:
+            self.text_dict = kwargs["text"]
             
     def __getitem__(self, index): 
-        user, item, label = self.test_dataset[index]
-        image_f = []
-        text_f =[]
-        if (self.image_dict2 is not None) & (self.text_dict2 is not None):
-            for i in item:
-                image_f.append(self.image_dict2[i])
-                text_f.append(self.text_dict2[i])
-            return user, item, image_f, text_f, label
-        elif self.image_dict2 is not None:
-            for i in item:
-                image_f.append(self.image_dict2[i])
-            return user, item, image_f, label
-        elif self.text_dict2 is not None:
-            for i in item:
-                text_f.append(self.text_dict2[i])
-            return user, item, text_f, label
+        user, item = self.test_user[index], self.test_item[index]
+        
+        if (self.image_dict is not None) & (self.text_dict is not None):
+            image_f = self.image_dict[item]
+            text_f = self.text_dict[item]
+            if type(image_f) != type(torch.Tensor([])):
+                image_f = torch.FloatTensor(image_f)
+            return torch.LongTensor([user]), torch.LongTensor([item]), image_f, torch.FloatTensor(text_f)
+        elif self.image_dict is not None:
+            image_f = self.image_dict[item]
+            if type(image_f) != type(torch.Tensor([])):
+                image_f = torch.FloatTensor(image_f)
+            return torch.LongTensor([user]), torch.LongTensor([item]), image_f
+        elif self.text_dict is not None:
+            text_f = self.text_dict[item]
+            return torch.LongTensor([user]), torch.LongTensor([item]), torch.FloatTensor(text_f)
         else:
-            return user, item, label
+            return torch.LongTensor([user]), torch.LongTensor([item])
 
     def __len__(self):
-        return len(self.test_dataset)  
+        return len(self.test_user) 
