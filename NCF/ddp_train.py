@@ -1,4 +1,5 @@
 import os
+import json
 import pandas as pd
 import numpy as np
 from comet_ml import Experiment
@@ -183,7 +184,8 @@ def main(rank, args):
     df_test_n = pd.read_feather("%s/%s/test_negative.ftr" % (args.path, args.eval))
     user_index_info = pd.read_csv("%s/index-info/user_index.csv" % args.path)
     item_index_info = pd.read_csv("%s/index-info/item_index.csv" % args.path)
-    
+    meta_data = json.load(open(os.path.join('%s/item_meta.json' % args.path), 'rb'))
+
     user_index_dict = {}
     item_index_dict = {}
     
@@ -198,21 +200,12 @@ def main(rank, args):
         image_shape = 512
         # raw image를 쓸 것인지, 전처리 해놓은 feature vector를 쓸 지.
         if args.feature == 'raw':
+            id_list = item_index_info["itemid"].tolist()
             transform = transforms.Compose([transforms.Resize((224, 224)), 
                                             transforms.ToTensor(), 
                                             transforms.Normalize((0.5,), (0.5,))])
-            img_list = os.listdir('%s/image' % args.path)
-            for i in img_list:
-                if item_index_info['itemid'].dtype == item_index_info['itemidx'].dtype:
-                    try: # item 개수는 18316개이고 이미지는 18371개라 없는거 빼는 작업
-                        img_dict[item_index_info[item_index_info['itemid'] == int(i.split('.')[0])]['itemidx'].item()] = transform(Image.open(os.path.join('%s/image/%s' % (args.path, i))).convert('RGB'))
-                    except:
-                        continue
-                else:
-                    try:
-                        img_dict[item_index_info[item_index_info['itemid'] == i.split('.')[0]]['itemidx'].item()] = transform(Image.open(os.path.join('%s/image/%s' % (args.path, i))).convert('RGB'))
-                    except:
-                        continue
+            for i in range(len(id_list)):
+                img_dict[i] = transform(Image.open(os.path.join('%s' % args.path, '%s' % meta_data[str(id_list[i])]['image_path'])).convert('RGB'))
         else:
             img_feature = pd.read_pickle('%s/image_feature_vec.pickle' % args.path)
             for i, j in zip(item_index_info['itemidx'], item_index_info['itemid']):
@@ -317,9 +310,7 @@ def main(rank, args):
         print("train : ", t2 - t1) 
         if (epoch + 1) % args.interval == 0:
             # with experiment.test():
-            engine = Engine(args.top_k, rank, num_item, num_user)
-            t3 = time.time()
-            engine = Engine(args.top_k, item_num_dict, num_item, num_user)
+            engine = Engine(args.top_k, item_num_dict, num_item, num_user, rank)
             t3 = time.time()
             hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, image=img_dict, text=txt_dict, eval=args.eval)
             # if rank == 0:
