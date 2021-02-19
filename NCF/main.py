@@ -144,6 +144,14 @@ def get_args():
                 type=bool,
                 default=True,
                 help='using amp(Automatic mixed-precision)')
+    parser.add_argument('--port',
+                type=str,
+                default='8888',
+                help='master port')
+    parser.add_argument('--address',
+                type=str,
+                default='127.0.0.1',
+                help='master port')
     args = parser.parse_args()
     return args
 def main(rank, args):
@@ -172,10 +180,10 @@ def main(rank, args):
     }
 
     if rank == 0:
-        experiment = Experiment(api_key="Bc3OhH0UQZebqFKyM77eLZnAm",project_name='data distributed parallel')
+        experiment = Experiment(project_name='data distributed parallel')
         experiment.log_parameters(hyper_params)
     else:
-        experiment=Experiment(api_key="Bc3OhH0UQZebqFKyM77eLZnAm",disabled=True)
+        experiment=Experiment(disabled=True)
     
     # data load 
     df_train_p = pd.read_feather("%s/%s/train_positive.ftr" % (args.path, args.eval))
@@ -255,9 +263,9 @@ def main(rank, args):
     # train, test loader 생성
     train_dataset = UserItemTrainDataset(df_train_p, df_train_n, args.num_neg, image=img_dict, text=txt_dict)
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, rank=rank, num_replicas=args.world_size, shuffle=True)
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4, collate_fn=my_collate_trn, pin_memory =True, sampler=train_sampler)
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=2, collate_fn=my_collate_trn, pin_memory =True, sampler=train_sampler)
     test_dataset = UserItemtestDataset(test_u, test_i, image=img_dict, text=txt_dict)
-    test_loader = DataLoader(test_dataset, batch_size=args.batch_size * 5, shuffle=False, num_workers=4)
+    test_loader = DataLoader(test_dataset, batch_size=args.batch_size * 5, shuffle=False, num_workers=2)
     
     print('dataloader 생성 완료.')
     # train 및 eval 시작
@@ -330,7 +338,7 @@ if __name__ == '__main__':
     args = get_args()
     args.world_size = args.gpu
 
-    os.environ['MASTER_ADDR'] = '127.0.0.1'
-    os.environ['MASTER_PORT'] = '8888'
+    os.environ['MASTER_ADDR'] = args.address
+    os.environ['MASTER_PORT'] = args.port
     mp.spawn(main, nprocs=args.world_size, args=(args, ), join=True)
         
