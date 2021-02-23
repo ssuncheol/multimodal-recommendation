@@ -12,11 +12,11 @@ class NeuralCF(nn.Module):
         self.user_embedding_mlp = nn.Embedding(num_users, embedding_size)
         self.item_embedding_mlp = nn.Embedding(num_items, embedding_size)
         
-        self.feature_extract = resnet_tv.resnet18()
         if (kwargs['image'] is not None):
+            self.feature_extract = resnet_tv.resnet18()
             print("IMAGE FEATURE")
             if self.feature == 'raw':
-                    # map_location = {'cuda:%d' % 6: 'cuda:%d' % kwargs['rank']}
+                # map_location = {'cuda:%d' % 6: 'cuda:%d' % kwargs['rank']}
                 self.feature_extract.load_state_dict(torch.load(kwargs['extractor_path'], map_location='cuda:%d' % kwargs['rank']))    
             self.feature_extract.eval()
             for param in self.feature_extract.parameters():
