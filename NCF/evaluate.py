@@ -57,10 +57,7 @@ class Engine(object):
         start = 0
         end = 0
         for i in range(self.num_user):
-            if (self.item_num_dict[i] * 11) > self.max:
-                end = start + self.max
-            else:
-                end = start + self.item_num_dict[i] * 11
+            end = start + self.item_num_dict[i]
             score_sub_tensor = score_tensor[start:end]
             _, indices = torch.topk(score_sub_tensor, self.top_k)
             recommends = indices.cpu().numpy()
