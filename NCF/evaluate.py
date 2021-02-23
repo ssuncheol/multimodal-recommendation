@@ -11,9 +11,10 @@ def reduce_tensor(tensor, world_size):
     return rt
 
 class Engine(object):
-    def __init__(self, top_k, item_num_dict, max, num_user, rank, world_size):
+    def __init__(self, top_k, item_num_dict, test_pos_item_num, max, num_user, rank, world_size):
         self.top_k = top_k
         self.item_num_dict = item_num_dict
+        self.test_pos_item_num = test_pos_item_num
         self.max = max # test item 개수의 최대값
         self.num_user = num_user
         self.rank = rank
@@ -61,7 +62,7 @@ class Engine(object):
             score_sub_tensor = score_tensor[start:end]
             _, indices = torch.topk(score_sub_tensor, self.top_k)
             recommends = indices.cpu().numpy()
-            gt_item = np.array(range(self.item_num_dict[i]))
+            gt_item = np.array(range(self.test_pos_item_num[i]))
             performance = get_performance(gt_item, recommends.tolist())
             performance = torch.tensor(performance).cuda(self.rank)
 
@@ -73,7 +74,6 @@ class Engine(object):
             hr2_list.append(rd_hr2.item())
             ndcg_list.append(rd_ndcg.item())
             start = end
-            
         hit_ratio, hit_ratio2, ndcg = np.mean(hr_list), np.mean(hr2_list), np.mean(ndcg_list)
         print('[Evluating Epoch {}] HR = {:.4f}, HR2 = {:.4f}, NDCG = {:.4f}'.format(epoch_id+1, hit_ratio, hit_ratio2, ndcg))
         
