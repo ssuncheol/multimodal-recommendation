@@ -70,7 +70,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--path',
                 type=str,
-                default='/daintlab/data/recommend/Amazon-office-raw',
+                default='/daintlab/data/bufftoon',
                 help='path')
     parser.add_argument('--top_k',
                 type=int,
@@ -142,7 +142,7 @@ def get_args():
                 help='path of feature extractor(pretrained model)')
     parser.add_argument('--amp',
                 type=bool,
-                default=True,
+                default=False,
                 help='using amp(Automatic mixed-precision)')
     parser.add_argument('--port',
                 type=str,
@@ -180,7 +180,7 @@ def main(rank, args):
     }
 
     if rank == 0:
-        experiment = Experiment(project_name='data distributed parallel')
+        experiment = Experiment(project_name='bufftoon')
         experiment.log_parameters(hyper_params)
     else:
         experiment=Experiment(disabled=True)
@@ -238,8 +238,9 @@ def main(rank, args):
 
     # data 전처리
     dt = time.time()
-    MD = Make_Dataset(df_test_p, df_test_n)
-    test_u, test_i, item_num_dict = MD.evaluate_data
+    MD = Make_Dataset(df_train_p, df_train_n, df_test_p, df_test_n)
+    train_u, train_i, train_r, neg_pool_dict = MD.train_data
+    test_u, test_i, item_num_dict, test_pos_item_num = MD.evaluate_data
     print('데이터 전처리', (time.time() - dt))
     
     #NCF model
@@ -261,7 +262,7 @@ def main(rank, args):
     args.batch_size = int(args.batch_size / args.world_size)
     
     # train, test loader 생성
-    train_dataset = UserItemTrainDataset(df_train_p, df_train_n, args.num_neg, image=img_dict, text=txt_dict)
+    train_dataset = UserItemTrainDataset(train_u, train_i, train_r, neg_pool_dict, args.num_neg, image=img_dict, text=txt_dict)
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, rank=rank, num_replicas=args.world_size, shuffle=True)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=2, collate_fn=my_collate_trn, pin_memory =True, sampler=train_sampler)
     test_dataset = UserItemtestDataset(test_u, test_i, image=img_dict, text=txt_dict)
@@ -318,7 +319,7 @@ def main(rank, args):
         print("train : ", t2 - t1) 
         if (epoch + 1) % args.interval == 0:
             # with experiment.test():
-            engine = Engine(args.top_k, item_num_dict, num_item, num_user, rank, args.world_size)
+            engine = Engine(args.top_k, item_num_dict, test_pos_item_num, num_item, num_user, rank, args.world_size)
             t3 = time.time()
             hit_ratio, hit_ratio2, ndcg = engine.evaluate(model, test_loader, epoch_id=epoch, image=img_dict, text=txt_dict, eval=args.eval)
             # if rank == 0:
