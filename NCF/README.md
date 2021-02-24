@@ -19,26 +19,27 @@ Pytorch implementation of [Neural Collaborative Filtering](https://arxiv.org/abs
 
 | Argument | Type | Description | Default |
 |:---:|:---:|:---:|:---:|
-|data|str|dataset|amazon|
-|path|str|path|/daintlab/home/tmddnjs3467/workspace|
+|path|str|path|/daintlab/data/recommend/Amazon-office-raw|
 |top_k|int|top k recomendation|10|
 |image|bool|image feature|False|
 |text|bool|text feature|False|
 |feature|str|raw(png) or pre(vector)|raw|
 |optim|str|Optimizer|adam|
 |lr|float|Learning Rate|0.001|
-|epochs|int|Epoch|20|
+|epochs|int|Epoch|50|
 |drop_rate|float|dropout rate|0.0|
 |batch_size|int|Train batch size|1024|
 |latent_dim_mf|int|Dimension of latent vectors|8|
 |num_layers|int|Number of MLP's layer |1|
 |num_neg|int|Number of negative sample|4|
 |l2|float|L2 Regularization|0|
-|gpu|str|Name of Using gpu|0|
+|gpu|int|Number of used gpus|1|
 |eval|str|evaluation protocol|ratio-split|
-|interval|int|evaluation interval if eval is ratio-split|1|
-|apikey|str|comet ml apikey|None|
-
+|interval|int|evaluation interval|1|
+|extractor_path|str|pretrained model path|/daintlab/data/recommend/Amazon-office-raw/resnet18.pth|
+|amp|using Automatic mixed-precision|bool|True|
+|port|master port|str|8888|
+|address|master address|str|127.0.0.1|
 
 ## Installation 
 
@@ -53,14 +54,13 @@ git clone https://github.com/dltkddn0525/recommendation.git
 - python 3.8.3
 
   - pytorch 1.60
-  - sklearn 0.23.2
   - numpy 1.18.5 
   - pandas 1.1.2
 
 ## Usage 
 
 ```sh
-python3 main.py --path=/daintlab/home/tmddnjs3467/workspace/Amazon-office-raw --top_k=10 --image=False --text=False  --feature=raw --optim=adam --lr=0.001 --epochs=20 --drop_rate=0.3 --batch_size=1024 --latent_dim_mf=8 --num_layers=1 --num_neg=4 --gpu=0 --eval=ratio-split --apikey=None
+python3 main.py --path=/daintlab/data/recommmend/Amazon-office-raw --top_k=10 --image=False --text=False  --feature=raw --optim=adam --lr=0.001 --epochs=30 --drop_rate=0.3 --batch_size=256 --latent_dim_mf=8 --num_layers=1 --num_neg=4 --gpu=2 --eval=ratio-split --amp=True --port=8888 --address=127.0.0.1
 ```
 
 ## Performance metrics
