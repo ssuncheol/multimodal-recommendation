@@ -5,6 +5,7 @@ import json
 import time
 import os
 from torch.utils.data import DataLoader
+import pandas as pd
 import numpy as np
 import torch.multiprocessing as mp
 import torch.nn as nn
@@ -15,13 +16,14 @@ import dataset as D
 from metric import get_performance
 import resnet_tv as resnet
 import torch.distributed as dist
+import torchvision.utils as vutils
 
 parser = argparse.ArgumentParser(description='MAML')
 parser.add_argument('--save_path', default='./result', type=str,
                     help='savepath')
 parser.add_argument('--batch_size', default=512, type=int,
                     help='batch size')
-parser.add_argument('--epoch', default=100, type=int,
+parser.add_argument('--epoch', default=200, type=int,
                     help='train epoch')
 parser.add_argument('--data_path', default='/daintlab/data/recommend/Movielens-raw', type=str,
                     help='Path to rating data')
@@ -43,20 +45,21 @@ parser.add_argument('--num_neg', default=4, type=int,
                     help='Number of negative samples for training')
 parser.add_argument('--load_path', default=None, type=str,
                     help='Path to saved model')
-parser.add_argument('--eval_freq', default=25, type=int,
+parser.add_argument('--eval_freq', default=50, type=int,
                     help='evaluate performance every n epoch')
-parser.add_argument('--feature_type', default='all', type=str,
+parser.add_argument('--feature_type', default='img', type=str,
                     help='Type of feature to use. [all, img, txt]')
 parser.add_argument('--eval_type', default='ratio-split', type=str,
                     help='Evaluation protocol. [ratio-split, leave-one-out]')
-parser.add_argument('--cnn_path', default='./resnet18.pth', type=str,
+parser.add_argument('--cnn_path', default='./pretrained_model/resnet18.pth', type=str,
                     help='Path to feature data')
-parser.add_argument('--ddp_port', default='8888', type=str,
+parser.add_argument('--ddp_port', default='22222', type=str,
                     help='DDP Port')
 args = parser.parse_args()
 
 
 def main(rank, args):
+#def main():
     # Initialize Each Process
     init_process(rank, args.world_size)
     # hyper_params={
@@ -95,11 +98,11 @@ def main(rank, args):
     data_path = os.path.join(args.data_path, args.eval_type)
     train_df, test_df, train_ng_pool, test_negative, num_user, num_item, text_feature, images = D.load_data(
         data_path, args.feature_type)
-
     train_dataset = D.CustomDataset(train_df, text_feature, images, negative=train_ng_pool, num_neg=args.num_neg,
                                     istrain=True, feature_type=args.feature_type)
     test_dataset = D.CustomDataset(test_df, text_feature, images, negative=test_negative, num_neg=None,
                                    istrain=False, feature_type=args.feature_type)
+
     args.batch_size = int(args.batch_size / args.world_size)
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset,
                                                                     rank=rank,
@@ -107,7 +110,7 @@ def main(rank, args):
                                                                     shuffle=True)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4,
                               collate_fn=my_collate_trn, pin_memory=True, sampler=train_sampler)
-    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4,
+    test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4,
                              collate_fn=my_collate_tst, pin_memory=True)
 
     # Model
@@ -143,7 +146,7 @@ def main(rank, args):
     # Logger
     train_logger = Logger(f'{save_path}/train.log')
     test_logger = Logger(f'{save_path}/test.log')
-    hit_record_logger = Logger(f'{save_path}/hitrecord.log')
+    #hit_record_logger = Logger(f'{save_path}/hitrecord.log')
 
     # Train & Eval
     for epoch in range(args.epoch):
@@ -155,7 +158,7 @@ def main(rank, args):
         # Save and test Model every n epoch
         if (epoch + 1) % args.eval_freq == 0 or epoch == 0:
             start = time.time()
-            test(model, test_loader, test_logger, epoch, hit_record_logger)
+            test(model, test_loader, test_logger, epoch)
             torch.save(model.state_dict(), f"{save_path}/model_{epoch + 1}.pth")
             print('test time : ', time.time() - start, 'sec/epoch => ', (time.time() - start) / 60, 'min')
     # cleanup()
@@ -229,50 +232,63 @@ def train(model, embedding_loss, feature_loss, covariance_loss, optimizer, scale
                             feat_loss.avg, cov_loss.avg])
 
 
-def test(model, test_loader, test_logger, epoch, hit_record_logger):
+def test(model, test_loader, test_logger, epoch):
     model.eval()
     hr = AverageMeter()
     hr2 = AverageMeter()
     ndcg = AverageMeter()
     data_time = AverageMeter()
     iter_time = AverageMeter()
+    user_cat = torch.tensor([]).cuda(dist.get_rank())
+    score_cat=torch.tensor([]).cuda(dist.get_rank())
+    label_cat=torch.tensor([]).cuda(dist.get_rank())
+    item_cat = torch.tensor([]).cuda(dist.get_rank())
     end = time.time()
+
     for i, (user, item, feature, image, label) in enumerate(test_loader):
         data_time.update(time.time() - end)
         with torch.no_grad():
             user, item, feature, image, label = user.squeeze(0), item.squeeze(0), feature.squeeze(0), image.squeeze(
-                0), label.squeeze(0)
+               0), label.squeeze(0)
             user, item, feature, image, label = \
                 user.cuda(dist.get_rank(), non_blocking=True), item.cuda(dist.get_rank(), non_blocking=True), \
                 feature.cuda(dist.get_rank(), non_blocking=True), image.cuda(dist.get_rank(), non_blocking=True), \
                 label.cuda(dist.get_rank(), non_blocking=True)
             _, _, _, score = model(user, item, feature, image)
-            pos_idx = label.nonzero()
-            _, indices = torch.topk(-score, args.top_k)
-            recommends = torch.take(item, indices).cpu().numpy()
-            gt_item = item[pos_idx].cpu().numpy()
-            performance = get_performance(gt_item, recommends.tolist())
-            performance = torch.tensor(performance).cuda(dist.get_rank())
+            user_cat=torch.cat((user_cat,user))
+            score_cat=torch.cat((score_cat, score))
+            label_cat=torch.cat((label_cat, label))
+            item_cat=torch.cat((item_cat, item))
 
-            rd_hr = reduce_tensor(performance[0].data, dist.get_world_size())
-            rd_hr2 = reduce_tensor(performance[1].data, dist.get_world_size())
-            rd_ndcg = reduce_tensor(performance[2].data, dist.get_world_size())
+            if i%10==0 and dist.get_rank()==0:
+                print(f"test iter : {i}/{len(test_loader)}")
 
-            hr.update(performance[0].cpu().numpy())
-            hr2.update(performance[1].cpu().numpy())
-            ndcg.update(performance[2].cpu().numpy())
-            iter_time.update(time.time() - end)
-            end = time.time()
+    for k in np.unique(user_cat.cpu()):
+        index=np.where(np.array(user_cat.cpu().detach())==k)
+        label=label_cat[index]
+        score=score_cat[index]
+        item=item_cat[index]
 
-            # experiment.log_metric("hit-ratio",hr.avg,step=epoch)
-            # experiment.log_metric("hit-ratio2",hr2.avg,step=epoch)
-            # experiment.log_metric("ndcg",ndcg.avg,step=epoch)
+        pos_idx = label.nonzero()
+        _, indices = torch.topk(-score, args.top_k)
+        recommends = torch.take(item, indices).cpu().detach().numpy()
+        gt_item = item[pos_idx].cpu().detach().numpy()
+        performance = get_performance(gt_item, recommends.tolist())
+        performance = torch.tensor(performance).cuda(dist.get_rank())
 
-            if epoch + 1 == args.epoch and dist.get_rank() == 0:
-                hit_record_logger.write([user[0].item(), len(gt_item), performance[0]])
-            if i % 50 == 0 and dist.get_rank() == 0:
-                print(
-                    f"{i + 1} Users tested. Iteration time : {iter_time.avg:.5f}/user Data time : {data_time.avg:.5f}/user")
+        hr.update(performance[0].cpu().detach().numpy())
+        hr2.update(performance[1].cpu().detach().numpy())
+        ndcg.update(performance[2].cpu().detach().numpy())
+        iter_time.update(time.time() - end)
+        end = time.time()
+
+        # experiment.log_metric("hit-ratio",hr.avg,step=epoch)
+        # experiment.log_metric("hit-ratio2",hr2.avg,step=epoch)
+        # experiment.log_metric("ndcg",ndcg.avg,step=epoch)
+
+        if k % 50 == 0 and dist.get_rank() == 0:
+            print(
+                f"{k + 1} Users tested. Iteration time : {iter_time.avg:.5f}/user Data time : {data_time.avg:.5f}/user")
     if dist.get_rank() == 0:
         print(
             f"Epoch : [{epoch + 1}/{args.epoch}] Hit Ratio : {hr.avg:.4f} nDCG : {ndcg.avg:.4f} Hit Ratio 2 : {hr2.avg:.4f} Test Time : {iter_time.avg:.4f}/user")
@@ -328,3 +344,4 @@ def reduce_tensor(tensor, world_size):
 if __name__ == "__main__":
     args.world_size = torch.cuda.device_count()
     mp.spawn(main, nprocs=args.world_size, args=(args,))
+    #main()
