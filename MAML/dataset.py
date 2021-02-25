@@ -96,7 +96,7 @@ class CustomDataset(Dataset):
     def make_testset(self):
         assert not self.istrain
         users = np.unique(self.dataset["userID"])
-        test_dataset = []
+        test_dataset=[]
         for user in users:
             if type(self.negative[user]) == list:
                 test_negative = self.negative[user]
@@ -106,11 +106,16 @@ class CustomDataset(Dataset):
             item = test_positive + test_negative
             label = np.zeros(len(item))
             label[:len(test_positive)] = 1
-            label = label.tolist()
             test_user = np.ones(len(item)) * user
-            test_dataset.append([test_user.tolist(), item, label])
+
+            testset=np.vstack((test_user,np.array(item),label)).T
+            test_dataset.append(testset)
+
+        test_dataset=np.concatenate(test_dataset).astype(np.int64)
 
         self.dataset = test_dataset
+
+
 
     def __len__(self):
         return len(self.dataset)
@@ -154,15 +159,11 @@ class CustomDataset(Dataset):
             t_feature, img = [0.0], torch.Tensor([0.0])
 
             if self.feature_type == "txt" or self.feature_type == "all":
-                t_feature = []
-                for i in item:
-                    t_feature.append(self.text_feature[i])
-                t_feature = np.array(t_feature)
+                for i in [item]:
+                    t_feature = np.array(self.text_feature[i])
 
             if self.feature_type == "img" or self.feature_type == "all":
-                img = []
-                for j in item:
-                    img.append(self.images[j])
-                img = torch.stack(img)
+                for j in [item]:
+                    img = self.images[j]
 
             return user, item, t_feature, img, label
