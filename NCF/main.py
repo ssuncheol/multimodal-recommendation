@@ -1,4 +1,4 @@
-# from comet_ml import Experiment
+from comet_ml import Experiment
 import torch
 import argparse
 import json
@@ -61,28 +61,15 @@ parser.add_argument('--cnn_path', default='./resnet18.pth', type=str,
                     help='Path to feature data')
 parser.add_argument('--ddp_port', default='22222', type=str,
                     help='DDP Port')
+parser.add_argument('--ddp_addr', default='127.0.0.1', type=str,
+                    help='DDP Address')
 args = parser.parse_args()
 
 
 def main(rank, args):
-#def main():
     # Initialize Each Process
     init_process(rank, args.world_size)
-    # hyper_params={
-    #     "batch_size":args.batch_size,
-    #     "epoch":args.epoch,
-    #     "embed_dim":args.embed_dim,
-    #     "dropout_rate":args.dropout_rate,
-    #     "learning_rate":args.lr,
-    #     "margin":args.margin,
-    #     "feat_weight":args.feat_weight,
-    #     "cov_weight":args.cov_weight,
-    #     "top_k":args.top_k,
-    #     "num_neg":args.num_neg,
-    #     "eval_freq":args.eval_freq,
-    #     "feature_type":args.feature_type,
-    #     "eval_type":args.eval_type
-    # }
+    
     # Set save path
     save_path = args.save_path
     if not os.path.exists(save_path) and dist.get_rank() == 0:
@@ -92,10 +79,10 @@ def main(rank, args):
             json.dump(args.__dict__, f, indent=2)
 
     if dist.get_rank() == 0:
-        experiment = Experiment(api_key="ZSGBzbLxOxZe4qEZ917ZbOV1m",project_name='recommend',disabled=True)
+        experiment = Experiment(project_name='recommend')
         experiment.log_parameters(args)
     else:
-        experiment=Experiment(api_key="ZSGBzbLxOxZe4qEZ917ZbOV1m",disabled=True)
+        experiment = Experiment(disabled=True)
 
     # Load dataset
     print("Loading Dataset")
@@ -114,7 +101,7 @@ def main(rank, args):
                                                                     shuffle=True)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4,
                               collate_fn=my_collate_trn, pin_memory=True, sampler=train_sampler)
-    test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4,
+    test_loader = DataLoader(test_dataset, batch_size=args.batch_size*2, shuffle=False, num_workers=4,
                              collate_fn=my_collate_tst, pin_memory=True)
 
     # Model
@@ -161,9 +148,8 @@ def main(rank, args):
     else:
         criterion = nn.BCEWithLogitsLoss().cuda(rank)
     # Logger
-    # train_logger = Logger(f'{save_path}/train.log')
-    # test_logger = Logger(f'{save_path}/test.log')
-    # hit_record_logger = Logger(f'{save_path}/hitrecord.log')
+    train_logger = Logger(f'{save_path}/train.log')
+    test_logger = Logger(f'{save_path}/test.log')
 
     # Train & Eval
     for epoch in range(args.epoch):
@@ -171,17 +157,18 @@ def main(rank, args):
         train_sampler.set_epoch(epoch)
         if args.model == "MAML":
             train(model=model, model_type=args.model, optimizer=optimizer, scaler=scaler, train_loader=train_loader, train_logger=train_logger,
-                epoch=epoch, embedding_loss=embedding_loss, feature_loss=feature_loss, covariance_loss=covariance_loss)
+                epoch=epoch, embedding_loss=embedding_loss, feature_loss=feature_loss, covariance_loss=covariance_loss, experiment=experiment)
         else:
             train(model=model, model_type=args.model, optimizer=optimizer, scaler=scaler, train_loader=train_loader, train_logger=train_logger,
-                epoch=epoch, criterion=criterion)
+                epoch=epoch, criterion=criterion, experiment=experiment)
         print('epoch time : ', time.time() - start, 'sec/epoch => ', (time.time() - start) / 60, 'min/epoch')
         # Save and test Model every n epoch
         if (epoch + 1) % args.eval_freq == 0 or epoch == 0:
             start = time.time()
-            test(model, args.model, test_loader, test_logger, epoch, test_pos_item_num, item_num_dict)
-            if rank == 0:
-                torch.save(model.state_dict(), f"{save_path}/model_{epoch + 1}.pth")
+            test(model=model, model_type=args.model, test_loader=test_loader, test_logger=test_logger, epoch=epoch, 
+                test_pos_item_num=test_pos_item_num, item_num_dict=item_num_dict, experiment=experiment)
+            # if rank == 0:
+            #     torch.save(model.state_dict(), f"{save_path}/model_{epoch + 1}.pth")
             print('test time : ', time.time() - start, 'sec/epoch => ', (time.time() - start) / 60, 'min')
     cleanup()
     experiment.end()
@@ -189,6 +176,7 @@ def main(rank, args):
 
 def train(model, model_type, optimizer, scaler, train_loader, train_logger, epoch, **kwargs):
     model.train()
+    experiment = kwargs['experiment']
     total_loss = AverageMeter()
     data_time = AverageMeter()
     iter_time = AverageMeter()
@@ -279,7 +267,7 @@ def train(model, model_type, optimizer, scaler, train_loader, train_logger, epoc
     #     else: # NCF
     #         train_logger.write([epoch, total_loss.avg])
 
-def test(model, model_type, test_loader, test_logger, epoch, test_pos_item_num, item_num_dict):
+def test(model, model_type, test_loader, test_logger, epoch, test_pos_item_num, item_num_dict, experiment):
     model.eval()
     hr = AverageMeter()
     hr2 = AverageMeter()
@@ -294,8 +282,7 @@ def test(model, model_type, test_loader, test_logger, epoch, test_pos_item_num, 
     for i, (user, item, feature, image) in enumerate(test_loader):
         data_time.update(time.time() - end)
         with torch.no_grad():
-            user, item, feature, image = user.squeeze(0), item.squeeze(0), feature.squeeze(0), image.squeeze(
-               0)
+            user, item, feature, image = user.squeeze(-1), item.squeeze(-1), feature.squeeze(-1), image.squeeze(-1)
             user, item, feature, image = \
                 user.cuda(dist.get_rank(), non_blocking=True), item.cuda(dist.get_rank(), non_blocking=True), \
                 feature.cuda(dist.get_rank(), non_blocking=True), image.cuda(dist.get_rank(), non_blocking=True)
@@ -307,7 +294,7 @@ def test(model, model_type, test_loader, test_logger, epoch, test_pos_item_num, 
 
             if i%1000==0 and dist.get_rank()==0:
                 print(f"test iter : {i}/{len(test_loader)}")
-            
+                    
             while(len(score_cat) >= item_num_dict[user_count]): 
                 score_sub_tensor = score_cat[:item_num_dict[user_count]]
                 score_cat = score_cat[item_num_dict[user_count]:]
@@ -325,8 +312,8 @@ def test(model, model_type, test_loader, test_logger, epoch, test_pos_item_num, 
                 user_count += 1
                 if user_count == len(item_num_dict.keys()):
                     break    
-            
-    print(score_cat.shape)
+                    
+    print('남은 스코어', score_cat.shape)
     iter_time.update(time.time() - end)
     end = time.time()
 
@@ -386,7 +373,7 @@ def my_collate_tst(batch):
 
 
 def init_process(rank, world_size, backend='nccl'):
-    os.environ['MASTER_ADDR'] = '127.0.0.1'
+    os.environ['MASTER_ADDR'] = args.ddp_addr
     os.environ['MASTER_PORT'] = args.ddp_port
     dist.init_process_group(backend, rank=rank, world_size=world_size)
 
