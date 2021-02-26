@@ -34,21 +34,31 @@ def load_data(data_path, feature_type):
     num_user = max(train_df["userID"]) + 1
     num_item = index_info.shape[0]
 
-    id_list = index_info["itemid"].tolist()
-
     with open(os.path.join(feature_dir, "item_meta.json"), "rb") as f:
         meta_data = json.load(f)
-    with open(os.path.join(feature_dir, 'text_feature_vec.pickle'), 'rb') as f:
-        text_vec = pickle.load(f)
+    if (feature_type == 'txt') | (feature_type =='all'):
+        with open(os.path.join(feature_dir, 'text_feature_vec.pickle'), 'rb') as f:
+            text_vec = pickle.load(f)
     image_path_list = []
-    t_features = []
-    for item_id in id_list:
-        t_features.append(text_vec[item_id])
-        img_path = meta_data[f"{item_id}"]["image_path"]
-        image_path_list.append(os.path.abspath(os.path.join(feature_dir, img_path)))
+    if data_path.split('/')[-2] == 'bufftoon':
+        id_list = index_info["itemidx"].tolist()
+        t_features = np.zeros((1,300))
+        for item_id in id_list:
+            img_path = meta_data["image_path"][f"{item_id}"]
+            image_path_list.append(os.path.abspath(os.path.join(feature_dir, img_path)))   
+    else: # movielens, amazon office
+        id_list = index_info["itemid"].tolist()
+        t_features = []
+        for item_id in id_list:
+            if (feature_type == 'txt') | (feature_type =='all'):
+                t_features.append(text_vec[item_id])
+            else:
+                t_features = np.zeros((1,300))
+            img_path = meta_data[f"{item_id}"]["image_path"]
+            image_path_list.append(os.path.abspath(os.path.join(feature_dir, img_path)))
 
-    t_features = np.array(t_features)
-    t_features = dict(enumerate(t_features, 0))
+        t_features = np.array(t_features)
+        t_features = dict(enumerate(t_features, 0))
     image_path_list = np.array(image_path_list)
     images = {}
 
@@ -59,9 +69,7 @@ def load_data(data_path, feature_type):
         for i in range(len(image_path_list)):
             img = Image.open(image_path_list[i]).convert("RGB")
             images[i] = transform(img)
-        # images = torch.stack(images)
-        # images = dict(enumerate(images,0))
-
+       
     print(f"Data Loaded. num user : {num_user} num item : {num_item} {time.time() - start:.4f} sec")
     return train_df, test_df, train_ng_pool, test_negative, num_user, num_item, t_features, images, test_pos_item_num, item_num_dict
 
@@ -161,7 +169,10 @@ class CustomDataset(Dataset):
                 user = np.repeat(user, self.num_neg + 1)
                 rating = np.repeat(0., self.num_neg + 1)
                 rating[0] = 1.
-                return user, item_idx, rating, t_feature, torch.stack(img)
+                if (self.feature_type == "all") | (self.feature_type == "img"):
+                    return user, item_idx, rating, t_feature, torch.stack(img)
+                else:
+                    return user, item_idx, rating, t_feature, img.view((5, -1))
         else:
             user, item = self.dataset[index]
 
