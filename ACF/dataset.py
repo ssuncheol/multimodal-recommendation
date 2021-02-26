@@ -67,23 +67,23 @@ def load_data(data_path, feature_type):
 
 class CustomDataset(Dataset):
     '''
-    Train Batch [user, item_p, item_n, pos_set, feature_p]
+    Train Batch [user, item_p, item_n, pos_set, img_p]
     user = [1]
     item_p = [1]
     item_n = [1]
     pos_set = [1 x p]
-    feature_p = [1 x p x f]
+    img_p = [1 x p]
 
-    Test Batch [user, item, pos_set, feature_p]
+    Test Batch [user, item, pos_set, img_p]
     N = number of positive + negative item for corresponding user
     user = [1]
     item = [N]
     pos_set = [1 x p]
-    feature_p = [1 x p x f]
+    img_p = [1 x p]
 
     '''
 
-    def __init__(self, train, test, images, negative, istrain=False, feature_type = "all",num_sam = 1):
+    def __init__(self, train, test, images, negative, istrain=False, feature_type = "img",num_sam = 1):
         super(CustomDataset, self).__init__()
         self.istrain = istrain
         self.train = train # df
@@ -106,34 +106,26 @@ class CustomDataset(Dataset):
         if self.istrain:
             user, item_p = self.train[index]
             positives = self.positive_set[user]
-            
-          
-            users = np.repeat(user,self.num_sam)         
-            users = user.reshape(-1,self.num_sam)             
+                         
             # Negative Sampling
             ng_pool = self.negative[user]
             ng_idx = np.random.choice(len(ng_pool),1)
             item_n = ng_pool[ng_idx].reshape(-1)
 
             img_p = self.images[positives]
-            #img_p = np.expand_dims(img_p, axis=1)
-            #img_p = img_p.reshape(-1,self.num_sam)
-            positives = positives.reshape(-1,self.num_sam)
-            return users, item_p, item_n, positives, img_p
+            img_p = torch.unsqueeze(img_p,1)
+            
+            return user, item_p, item_n, positives, img_p
 
         else:
             user, _ = self.train[index]
-            positives = self.positive_set[user]
-            
-
-            users = np.repeat(user,self.num_sam)
-            users = user.reshape(-1,self.num_sam)
+            positives = self.positive_set[user].reshape(-1)
                 
             img_p = self.images[positives]
-            img_p = img_p.reshape(-1,self.num_sam)
+            img_p = torch.unsqueeze(img_p,0)
             
             _,test_positive = self.test[user]
-            test_negative = self.negative[user]
-            positives = positives.reshape(-1,self.num_sam)
-            return users, test_positive, test_negative, positives, img_p
+            test_negative = self.negative[user].reshape(-1)
+            #import pdb; pdb.set_trace()
+            return user, test_positive, test_negative, positives, img_p
 

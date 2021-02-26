@@ -25,57 +25,77 @@ class ACF(nn.Module):
         self.feature_conv3 = nn.Conv2d(in_channels=128, out_channels=embd_dim,kernel_size=1)
         self.feature_conv4 = nn.Conv2d(in_channels=embd_dim, out_channels=1,kernel_size=1)
 
+        self._init_weight_()
+
+    def _init_weight_(self):
+        nn.init.normal_(self.user_embedding.weight, std=0.01)
+        nn.init.normal_(self.item_j_embedding.weight, std=0.01)
+        nn.init.normal_(self.item_k_embedding.weight, std=0.01)
+        nn.init.normal_(self.item_p_embedding.weight, std=0.01)
+
     
-    def forward(self,user_indices,item_j_indices,item_k_indices,positive_indices,imgs):    
-        user = self.user_embedding(user_indices) # [batch size x p x dim]
-        #print("user shape : ",user.shape)
-        item_j = self.item_j_embedding(item_j_indices) # [batch size x dim]
-        #print("item j shape : ", item_j.shape)
-        item_k = self.item_k_embedding(item_k_indices) # [batch size x dim]
-        #print("item k shape : ", item_k.shape)
-        item_p = self.item_p_embedding(positive_indices) # [batch size x p x dim]
-        #print("item p shape : ", item_p.shape)
+    def forward(self,user_indices,item_j_indices,item_k_indices,positive_indices,imgs,num_sam):    
+        user = self.user_embedding(user_indices) 
+        #print("user shape : ",user.shape) # [batch size x dim]
+        item_j = self.item_j_embedding(item_j_indices)
+        #print("item j shape : ", item_j.shape) # [batch size x dim]
+        item_k = self.item_k_embedding(item_k_indices)
+        #print("item k shape : ", item_k.shape) # [batch size x dim]
+        item_p = self.item_p_embedding(positive_indices)
+        #print("item p shape : ", item_p.shape) # [batch size x p x dim]
         user = user.view(-1,self.dim,1,1)
-
-        #print("imgs shape : ",imgs.shape)
-        imgs = self.features(imgs) # [batch size x channel x H x W]
-        #print("imgs shape : ", imgs.shape)
-        component = self.feature_conv1(imgs) # [batch size x p x dim]
-        #print("component shape : ", component.shape)
-        component += user
-      
-        component = F.relu(component)
-        component = self.feature_conv2(component)
-        #print("component shape : ", component.shape)
-        component = component.view(-1,1,28*28) # [batch size x p x f]
-        #print("component shape : ", component.shape)
-        component_weight = F.softmax(component,dim=-1)
-     
-        imgs = imgs.view(-1,128,28*28) # [batch size x p x channel x f]
-        xl_bar = torch.sum(imgs * component_weight,dim=-1)
-        xl_bar = xl_bar.view(-1,128,1,1) 
-        #print("xl bar : ", xl_bar.shape)
-
-        item = self.feature_conv3(xl_bar)
-        #print("item shape : ", item.shape)
-        item += user
         
-        item = F.relu(item)
-        item = self.feature_conv4(item) 
-        #print("item shape : ", item.shape)
-        item_weight = item.view(-1,1)
-        #print("item weight shape : ",item_weight.shape)
-        #item_weight = F.softmax(item,dim=0) # [batch size x 1]
-
+        xl_bars = []
+        for n in range(num_sam):
+            img = imgs[:,n,:,:,:]
+            img = torch.squeeze(img,1)
+            img = self.features(img) 
+            #print("img shape : ", img.shape) # [batch size x channel x H x W]
+            component = self.feature_conv1(img)
+            component += user
+            component = F.relu(component)
+            component = self.feature_conv2(component)
+            component = component.view(-1,1,28*28) 
+            component_weight = F.softmax(component,dim=-1)
+            
+     
+            img = img.view(-1,128,28*28) # [batch size x p x channel x f]
+            xl_bar = torch.sum(img * component_weight,dim=-1)
+            xl_bar = xl_bar.view(-1,128,1,1) 
+            xl_bars.append(xl_bar)
  
-        attention = torch.mul(item_p,item_weight) # [batch size x dim]
-    
+        items = []
+        for ns in range(num_sam):
+            xl_bar = xl_bars[ns]
+            item = self.feature_conv3(xl_bar)
+            #print("item shape : ", item.shape)
+            item += user
+        
+            item = F.relu(item)
+            item = self.feature_conv4(item) 
+            #print("item shape : ", item.shape)
+            item = item.view(-1,1)
+            #print("item shape : ",item.shape)
+            item_weight = F.softmax(item,dim=1) # [batch size x 1]
+            #print("item weight shape : ",item_weight.shape)
+            items.append(item_weight)
+        items = torch.cat(items,1)
+        items = items.unsqueeze(-1)
+        #print("items shape",items.shape)
+        attention = torch.mul(item_p,items) # [batch size x dim]
+        #print("Attention shape",attention.shape)
+        attention = torch.sum(attention,1)
+        #print("Attention shape",attention.shape)
         user = user.view(-1,self.dim)
-        new_user = user+attention # [batch size x dim]
-
-   
-        score_j = torch.sum(torch.mul(new_user, item_j),1) # [batch size]
-        score_k = torch.sum(torch.mul(new_user, item_k),1) # [batch size]
+        new_user = torch.add(user,attention) # [batch size x dim]
+        #print("New User shape : ",new_user.shape)
+        score_j = torch.mul(item_j, new_user)
+        #print("Score shape : {}".format(score_j.shape))
+        score_j = torch.sum(score_j,-1) # [batch size]
+        #print("Score shape : {}".format(score_j.shape))
+        
+        score_k = torch.mul(item_k, new_user)
+        score_k = torch.sum(score_k,-1) # [batch size]
         
         return score_j, score_k
         
