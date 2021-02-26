@@ -13,7 +13,7 @@ def get_performance(gt_item, recommends):
     for item in gt_item:
         if item in recommends:
             hr += 1
-            index = item.item()
+            index = (recommends == item).nonzero(as_tuple=True)[0].item()
             dcg += np.reciprocal(np.log2(index+2))
     
     if hr>0:
