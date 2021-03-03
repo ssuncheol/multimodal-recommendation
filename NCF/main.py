@@ -383,7 +383,9 @@ def reduce_tensor(tensor, world_size):
     dist.all_reduce(rt, op=dist.ReduceOp.SUM)
     rt /= world_size
     return rt
-
+  
+def cleanup():
+    dist.destroy_process_group()
 
 if __name__ == "__main__":
     args.world_size = torch.cuda.device_count()
