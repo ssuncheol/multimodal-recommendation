@@ -36,29 +36,21 @@ def load_data(data_path, feature_type):
 
     with open(os.path.join(feature_dir, "item_meta.json"), "rb") as f:
         meta_data = json.load(f)
-    if (feature_type == 'txt') | (feature_type =='all'):
-        with open(os.path.join(feature_dir, 'text_feature_vec.pickle'), 'rb') as f:
-            text_vec = pickle.load(f)
+    with open(os.path.join(feature_dir, 'text_feature_vec.pickle'), 'rb') as f:
+        text_vec = pickle.load(f)
     image_path_list = []
-    if data_path.split('/')[-2] == 'bufftoon':
-        id_list = index_info["itemidx"].tolist()
-        t_features = np.zeros((1,300))
-        for item_id in id_list:
-            img_path = meta_data["image_path"][f"{item_id}"]
-            image_path_list.append(os.path.abspath(os.path.join(feature_dir, img_path)))   
-    else: # movielens, amazon office
-        id_list = index_info["itemid"].tolist()
-        t_features = []
-        for item_id in id_list:
-            if (feature_type == 'txt') | (feature_type =='all'):
-                t_features.append(text_vec[item_id])
-            else:
-                t_features = np.zeros((1,300))
-            img_path = meta_data[f"{item_id}"]["image_path"]
-            image_path_list.append(os.path.abspath(os.path.join(feature_dir, img_path)))
+    id_list = index_info["itemid"].tolist()
+    t_features = []
+    for item_id in id_list:
+        if (feature_type == 'txt') | (feature_type =='all'):
+            t_features.append(text_vec[item_id])
+        else:
+            t_features = np.zeros((1,300))
+        img_path = meta_data[f"{item_id}"]["image_path"]
+        image_path_list.append(os.path.abspath(os.path.join(feature_dir, img_path)))
 
-        t_features = np.array(t_features)
-        t_features = dict(enumerate(t_features, 0))
+    t_features = np.array(t_features)
+    t_features = dict(enumerate(t_features, 0))
     image_path_list = np.array(image_path_list)
     images = {}
 
