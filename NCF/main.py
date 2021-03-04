@@ -79,7 +79,7 @@ def main(rank, args):
             json.dump(args.__dict__, f, indent=2)
 
     if dist.get_rank() == 0:
-        experiment = Experiment(project_name='recommend')
+        experiment = Experiment(project_name='recommend', disabled=True)
         experiment.log_parameters(args)
     else:
         experiment = Experiment(disabled=True)
@@ -325,7 +325,7 @@ def test(model, model_type, test_loader, test_logger, epoch, test_pos_item_num, 
         print(f"{user_count} Users tested. Iteration time : {iter_time.avg:.5f}/user Data time : {data_time.avg:.5f}/user")
     if dist.get_rank() == 0:
         print(f"Epoch : [{epoch + 1}/{args.epoch}] Hit Ratio : {hr.avg:.4f} nDCG : {ndcg.avg:.4f} Hit Ratio 2 : {hr2.avg:.4f} Test Time : {iter_time.avg:.4f}/user")
-        # test_logger.write([epoch, hr.avg, hr2.avg, ndcg.avg])
+        # test_logger.write([epoch, float(hr.avg), float(hr2.avg), float(ndcg.avg)])
 
 
 def my_collate_trn(batch):
