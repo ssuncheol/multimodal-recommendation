@@ -5,13 +5,13 @@ import os
 import json
 import time
 from torch.utils.data import Dataset
-import pickle
 from PIL import Image
 import torchvision.transforms as transforms
-import torchvision.models as M
 import torch
 
 def load_data(data_path, feature_type):
+	
+    start = time.time()
     feature_dir = os.path.join(data_path,'../')
     train_df = pd.read_feather(os.path.join(data_path, 'train_positive.ftr'))
     test_df = pd.read_feather(os.path.join(data_path, 'test_positive.ftr'))
@@ -48,7 +48,7 @@ def load_data(data_path, feature_type):
     image_path_list = np.array(image_path_list)
     images = []
 
-    start = time.time()
+    
     if feature_type == "all" or feature_type == "img":
         transform = transforms.Compose([transforms.Resize((224,224)),
                                             transforms.ToTensor(),
@@ -66,23 +66,6 @@ def load_data(data_path, feature_type):
 
 
 class CustomDataset(Dataset):
-    '''
-    Train Batch [user, item_p, item_n, pos_set, img_p]
-    user = [1]
-    item_p = [1]
-    item_n = [1]
-    pos_set = [1 x p]
-    img_p = [1 x p]
-
-    Test Batch [user, item, pos_set, img_p]
-    N = number of positive + negative item for corresponding user
-    user = [1]
-    item = [N]
-    pos_set = [1 x p]
-    img_p = [1 x p]
-
-    '''
-
     def __init__(self, train, test, images, negative, istrain=False, feature_type = "img",num_sam = 1):
         super(CustomDataset, self).__init__()
         self.istrain = istrain
@@ -104,6 +87,14 @@ class CustomDataset(Dataset):
 
     def __getitem__(self, index):
         if self.istrain:
+            '''
+            Train Batch [user, item_p, item_n, pos_set, img_p]
+            user = [1]
+            item_p = [1]
+            item_n = [1]
+            pos_set = [1 x p]
+            img_p = [1 x p]
+            '''
             user, item_p = self.train[index]
             positives = self.positive_set[user]
                          
@@ -118,14 +109,23 @@ class CustomDataset(Dataset):
             return user, item_p, item_n, positives, img_p
 
         else:
-            user, _ = self.train[index]
-            positives = self.positive_set[user].reshape(-1)
+            '''
+            Test Batch [user, item, pos_set, img_p]
+            N = number of positive for corresponding user
+            M = number of negative item for corresponding user
+            user = [1]
+            item_p = [1 x N]
+            item_n = [1 x M]
+            pos_set = [1 x p]
+            img_p = [1 x p]
+            '''
+            user, _ = self.test[index]
+            positives = self.positive_set[user]
                 
             img_p = self.images[positives]
             img_p = torch.unsqueeze(img_p,0)
             
             _,test_positive = self.test[user]
-            test_negative = self.negative[user].reshape(-1)
-            #import pdb; pdb.set_trace()
-            return user, test_positive, test_negative, positives, img_p
+            test_negative = self.negative[user]
 
+            return user, test_positive, test_negative, positives, img_p

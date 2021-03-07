@@ -1,3 +1,4 @@
+#from comet_ml import Experiment
 import torch
 import argparse
 import json
@@ -18,7 +19,7 @@ warnings.filterwarnings("ignore")
 
 
 def main():
-    wandb.init(project="ACF")
+    wandb.init(project="AttCF")
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_path',
                 type=str,
@@ -34,7 +35,7 @@ def main():
                 help='optimizer')
     parser.add_argument('--epochs',
                 type=int,
-                default=20,
+                default=5,
                 help='epoch')
     parser.add_argument('--batch_size',
                 type=int,
@@ -42,16 +43,12 @@ def main():
                 help='batch size')
     parser.add_argument('--dim',
                 type=int,
-                default=32,
+                default=128,
                 help='dimension')    
     parser.add_argument('--lr',
                 type=float,
                 default=0.001,
                 help='learning rate')    
-    parser.add_argument('--reg',
-                type=float,
-                default=0.01,
-                help='l2_regularization')
     parser.add_argument('--gpu',
                 type=str,
                 default='0',
@@ -61,13 +58,18 @@ def main():
                 default=4,
                 help='num of pos sample')
 
-    parser.add_argument('--feature_type', default='all', type=str,
+    parser.add_argument('--feature_type',
+                        default='all', 
+                        type=str,
                         help='Type of feature to use. [all, img, txt]')
-    parser.add_argument('--eval_type', default='leave-one-out', type=str,
+    parser.add_argument('--eval_type', 
+                        default='leave-one-out', 
+                        type=str,
                         help='Evaluation protocol. [ratio-split, leave-one-out]')
 
     global args
     global sd
+    global train_len
     global test_len
     
     args = parser.parse_args()
@@ -83,6 +85,7 @@ def main():
     data_path = os.path.join(args.data_path,args.eval_type)
         
     train_df, test_df, train_ng_pool, test_negative, num_user, num_item, images = D.load_data(data_path, args.feature_type)
+    train_len = len(train_df)
     test_len = len(test_df)
     train_dataset = D.CustomDataset(train_df, test_df, images, negative=train_ng_pool, istrain=True, feature_type=args.feature_type, num_sam=args.num_sam)
     test_dataset = D.CustomDataset(train_df, test_df, images, negative=test_negative, istrain=False, feature_type=args.feature_type, num_sam=args.num_sam)
@@ -107,11 +110,12 @@ def main():
         train(acf, train_loader, epoch,optim)
         end = time.time()
         print("{}/{} Train Time : {}".format(epoch+1,args.epochs,end-start))
-        if (epoch+1) == 20:
+        if (epoch+1) == args.epochs:
             start = time.time()
             test(acf, test_loader, epoch)
             end = time.time()
             print("{}/{} Evaluate Time : {}".format(epoch+1,args.epochs,end-start))
+        
 
 def my_loss(pos, neg):
     cus_loss = - torch.sum(torch.log(torch.sigmoid(pos - neg) + 1e-10))
@@ -119,8 +123,13 @@ def my_loss(pos, neg):
 
 def train(model, train_loader, epoch, optim):
     model.train()
+    
     for i, (users, item_p, item_n, positives, img_p) in enumerate(train_loader):
         s = time.time()
+        print("user : ",users.shape)
+        print("pos : ",item_p.shape)
+        print("neg : ",item_n.shape)
+        print("poss : ",positives.shape)
         users, item_p, item_n,positives,img_p = users.cuda(), item_p.cuda(), item_n.cuda(), positives.cuda(), img_p.cuda()
         score_j, score_k = model(users,item_p,item_n,positives,img_p,args.num_sam)
         loss = my_loss(score_j,score_k)
@@ -130,8 +139,8 @@ def train(model, train_loader, epoch, optim):
         optim.step()
         wandb.log({'Batch Loss': loss})
         e = time.time()
-        #print("{} iter loss : {} time : {}".format(i,loss,e-s))
-       
+        print("{}/{} iter loss : {} time : {}".format(i,round(train_len/args.batch_size),loss,e-s))
+        
 
 
 def test(model, test_loader, epoch):
@@ -142,7 +151,12 @@ def test(model, test_loader, epoch):
     for i, (test_users, test_positive, test_negative, positiveset, test_img_p) in enumerate(test_loader):
         with torch.no_grad():
             sss = time.time()
-            pos_len = len(positiveset)
+            pos_len = len(positiveset[0])
+            print("User Index : ",test_users)
+            print("Positive : ",test_positive.shape)
+            print("Positiveset : ",positiveset.shape)
+            print("Negative : ",test_negative.shape)
+            
             test_index = test_positive.numpy().reshape(-1)
             test_negative_index = test_negative.numpy().reshape(-1)
             test_users, test_positive, test_negative ,positiveset,test_img_p = test_users.cuda(), test_positive.cuda(), test_negative.cuda(), positiveset.cuda(), test_img_p.cuda()
@@ -150,17 +164,21 @@ def test(model, test_loader, epoch):
             score_p, _ = model(test_users,test_positive,test_positive,positiveset,test_img_p,pos_len)
             neg_score = []
             for n in range(len(test_negative_index)):
-                score_n, _ = model(test_users.view(-1),test_negative[n].view(-1),test_negative[n].view(-1),positiveset,test_img_p,pos_len)
+                score_n, _ = model(test_users.view(-1),test_negative[:,n].view(-1),test_negative[:,n].view(-1),positiveset,test_img_p,pos_len)
                 score_n = score_n.detach().cpu().numpy().tolist()
                 neg_score.extend(score_n)
             positive_score = pd.Series(score_p.detach().cpu().numpy(),index = test_index)
             negative_score = pd.Series(neg_score,index = test_negative_index)
+            print("Test Score : ",positive_score)
+            print("Neg Score : ",negative_score)
             test_score = pd.concat([positive_score,negative_score])
-            test_score = test_score.argsort()[:args.top_k]
-            performance = get_performance(gt_item=test_index.tolist(),recommends=test_score.tolist())
+            test_score = test_score.sort_values(ascending=False)[:args.top_k]
+            performance = get_performance(gt_item=test_index.tolist(),recommends=test_score.index.tolist())
             hr1.append(performance[0])
+            print("hr1 : ",performance[0])
             hr2.append(performance[1])
             ndcg.append(performance[2])
+            print("ndcg : ",performance[2])
             eee = time.time()
             print("{}/{}번째 Time : {}".format(i,test_len,eee-sss))
             
@@ -174,24 +192,28 @@ def test(model, test_loader, epoch):
 def my_collate(batch):
     ss = time.time()
     user = [item[0] for item in batch]
-    user = torch.LongTensor(user)
+    user = torch.LongTensor(user).view(-1,1)
     item_p = [item[1] for item in batch]
-    item_p = torch.LongTensor(item_p)
+    item_p = torch.LongTensor(item_p).view(-1,1)
     item_n = [item[2] for item in batch]
-    item_n = torch.LongTensor(item_n).view(-1)
+    item_n = torch.LongTensor(item_n).view(-1,1)
     
     random.seed(sd)
+    print(sd)
     pos_set = np.array([random.sample(set(item[3]), args.num_sam) for item in batch])
     pos_set = torch.LongTensor(pos_set)
+    print("PPP : ",pos_set)
   
     random.seed(sd)
+    print(sd)
     img_p = [random.sample(set(item[4]), args.num_sam) for item in batch]
     img_p = [torch.cat(item) for item in img_p]
     img_p = [torch.unsqueeze(item,0) for item in img_p]
     img_p = torch.cat(img_p)    
   
     ee = time.time()
-    print("Collate Time : {}".format(ee-ss))
+    #print("Collate Time : {}".format(ee-ss))
+    
     return [user, item_p, item_n, pos_set, img_p]
 
 def my_collate_tst(batch):
@@ -201,13 +223,13 @@ def my_collate_tst(batch):
     item_p = [item[1] for item in batch]
     item_p = torch.LongTensor(item_p)
     item_n = [item[2] for item in batch]
-    item_n = torch.LongTensor(item_n).view(-1)
-    pos_set = torch.LongTensor([item[3] for item in batch]).view(-1)
+    item_n = torch.LongTensor(item_n)
+    pos_set = torch.LongTensor([item[3] for item in batch])
     img_p = [item[4] for item in batch]
     img_p = torch.cat(img_p)    
     
     ee = time.time()
-    print("Collate Time : {}".format(ee-ss))
+    #print("Collate Time : {}".format(ee-ss))
     return [user, item_p, item_n, pos_set, img_p]
 
 if __name__ == '__main__':
