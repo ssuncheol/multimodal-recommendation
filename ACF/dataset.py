@@ -72,10 +72,12 @@ class CustomDataset(Dataset):
         self.train = train # df
         self.images = images # Tensor
         self.positive_set = train.groupby("userID")["itemID"].apply(np.array)
+        #import pdb; pdb.set_trace() # Check min(Positive Item)
         self.negative = np.array(negative) # list->np
         self.feature_type = feature_type
         if not istrain:
             self.test = np.array(test)
+            self.test_positive_set = test.groupby("userID")["itemID"].apply(np.array)
         self.train = np.array(train)
         self.num_sam = num_sam
 
@@ -83,7 +85,7 @@ class CustomDataset(Dataset):
         if self.istrain:
             return len(self.train)
         else:
-            return len(self.test)
+            return len(self.test_positive_set)
 
     def __getitem__(self, index):
         if self.istrain:
@@ -119,13 +121,17 @@ class CustomDataset(Dataset):
             pos_set = [1 x p]
             img_p = [1 x p]
             '''
-            user, _ = self.test[index]
+            #import pdb;pdb.set_trace()
+            #user = self.test_positive_set["userID"][index]
+            user = index
             positives = self.positive_set[user]
                 
             img_p = self.images[positives]
             img_p = torch.unsqueeze(img_p,0)
             
-            _,test_positive = self.test[user]
+            #_,test_positive = self.test[index]
+            
+            test_positives = self.test_positive_set[user]
             test_negative = self.negative[user]
-
-            return user, test_positive, test_negative, positives, img_p
+            #import pdb;pdb.set_trace()
+            return user, test_negative, positives, test_positives, img_p

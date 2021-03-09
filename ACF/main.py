@@ -86,7 +86,8 @@ def main():
         
     train_df, test_df, train_ng_pool, test_negative, num_user, num_item, images = D.load_data(data_path, args.feature_type)
     train_len = len(train_df)
-    test_len = len(test_df)
+    test_len = num_user
+    
     train_dataset = D.CustomDataset(train_df, test_df, images, negative=train_ng_pool, istrain=True, feature_type=args.feature_type, num_sam=args.num_sam)
     test_dataset = D.CustomDataset(train_df, test_df, images, negative=test_negative, istrain=False, feature_type=args.feature_type, num_sam=args.num_sam)
   
@@ -148,26 +149,31 @@ def test(model, test_loader, epoch):
     hr1 = []
     hr2 = []
     ndcg = []
-    for i, (test_users, test_positive, test_negative, positiveset, test_img_p) in enumerate(test_loader):
+    for i, (test_users,  test_negative, positiveset, test_positiveset, test_img_p) in enumerate(test_loader):
         with torch.no_grad():
             sss = time.time()
             pos_len = len(positiveset[0])
             print("User Index : ",test_users)
-            print("Positive : ",test_positive.shape)
+            #print("Positive : ",test_positive)
             print("Positiveset : ",positiveset.shape)
+            print("Test_Positiveset : ",test_positiveset.shape)
             print("Negative : ",test_negative.shape)
             
-            test_index = test_positive.numpy().reshape(-1)
+            #test_index = test_positive.numpy().reshape(-1)
+            test_index = test_positiveset.numpy().reshape(-1)
             test_negative_index = test_negative.numpy().reshape(-1)
-            test_users, test_positive, test_negative ,positiveset,test_img_p = test_users.cuda(), test_positive.cuda(), test_negative.cuda(), positiveset.cuda(), test_img_p.cuda()
-            
-            score_p, _ = model(test_users,test_positive,test_positive,positiveset,test_img_p,pos_len)
+            test_users,  test_negative ,positiveset,test_img_p = test_users.cuda(),  test_negative.cuda(), positiveset.cuda(), test_img_p.cuda()
+            pos_score = []
+            for p in range(len(test_index)):
+                score_p, _ = model(test_users.view(-1),test_positiveset[:,p].view(-1),test_positiveset[:,p].view(-1),positiveset,test_img_p,pos_len)
+                score_p = score_p.detach().cpu().numpy().tolist()
+                pos_score.extend(score_p)
             neg_score = []
             for n in range(len(test_negative_index)):
                 score_n, _ = model(test_users.view(-1),test_negative[:,n].view(-1),test_negative[:,n].view(-1),positiveset,test_img_p,pos_len)
                 score_n = score_n.detach().cpu().numpy().tolist()
                 neg_score.extend(score_n)
-            positive_score = pd.Series(score_p.detach().cpu().numpy(),index = test_index)
+            positive_score = pd.Series(pos_score,index = test_index)
             negative_score = pd.Series(neg_score,index = test_negative_index)
             print("Test Score : ",positive_score)
             print("Neg Score : ",negative_score)
@@ -177,6 +183,7 @@ def test(model, test_loader, epoch):
             hr1.append(performance[0])
             print("hr1 : ",performance[0])
             hr2.append(performance[1])
+            print("hr2 : ",performance[1])
             ndcg.append(performance[2])
             print("ndcg : ",performance[2])
             eee = time.time()
@@ -202,7 +209,7 @@ def my_collate(batch):
     print(sd)
     pos_set = np.array([random.sample(set(item[3]), args.num_sam) for item in batch])
     pos_set = torch.LongTensor(pos_set)
-    print("PPP : ",pos_set)
+    print("PS : ",pos_set)
   
     random.seed(sd)
     print(sd)
@@ -220,17 +227,19 @@ def my_collate_tst(batch):
     ss = time.time()
     user = [item[0] for item in batch]
     user = torch.LongTensor(user)
-    item_p = [item[1] for item in batch]
-    item_p = torch.LongTensor(item_p)
-    item_n = [item[2] for item in batch]
-    item_n = torch.LongTensor(item_n)
-    pos_set = torch.LongTensor([item[3] for item in batch])
+    #item_p = [item[1] for item in batch]
+    #item_p = torch.LongTensor(item_p)
+    neg_set = [item[1] for item in batch]
+    neg_set = torch.LongTensor(neg_set)
+    pos_set = torch.LongTensor([item[2] for item in batch])
+    test_pos_set = torch.LongTensor([item[3] for item in batch])
     img_p = [item[4] for item in batch]
     img_p = torch.cat(img_p)    
     
     ee = time.time()
     #print("Collate Time : {}".format(ee-ss))
-    return [user, item_p, item_n, pos_set, img_p]
+    #import pdb;pdb.set_trace()
+    return [user, neg_set, pos_set, test_pos_set, img_p]
 
 if __name__ == '__main__':
     main()
