@@ -26,8 +26,8 @@ class Embedding_loss(nn.Module):
         weight.requires_grad_(False)
 
         loss *= weight
-        # return torch.mean(loss)
-        return torch.sum(loss)
+        return torch.mean(loss)
+        # return torch.sum(loss)
 
 class Feature_loss(nn.Module):
     def __init__(self):
@@ -38,8 +38,8 @@ class Feature_loss(nn.Module):
         feature_vec = torch.cat((q_i_feature.unsqueeze(1),q_k_feature),axis=1)
         # loss = torch.norm(feature_vec - id_vec, dim=-1, p=2)
         loss = (feature_vec - id_vec)**2
-        # return torch.mean(loss)
-        return torch.sum(loss)
+        return torch.mean(loss) * 64
+        # return torch.sum(loss)
 
 class Covariance_loss(nn.Module):
     def __init__(self):
@@ -55,4 +55,3 @@ class Covariance_loss(nn.Module):
         loss = torch.norm(cov)**2 - torch.norm(cov.diag())**2
 
         return loss
-
