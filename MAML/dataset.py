@@ -27,7 +27,7 @@ def load_data(data_path, feature_type):
 
     index_info = pd.read_csv(os.path.join(data_path, '../index-info/item_index.csv'))
     num_user = max(train_df["userID"]) + 1
-    num_item = max(train_df["itemID"]) + 1
+    num_item = index_info.shape[0]
 
     id_list = index_info["itemid"].tolist()
 
@@ -50,7 +50,8 @@ def load_data(data_path, feature_type):
     if feature_type == "all" or feature_type == "img":
         transform = transforms.Compose([transforms.Resize((224, 224)),
                                         transforms.ToTensor(),
-                                        transforms.Normalize((0.5,), (0.5,))])
+                                        transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                                             std=[0.229, 0.224, 0.225])])
         for i in range(len(image_path_list)):
             img = Image.open(image_path_list[i]).convert("RGB")
             img = transform(img)
