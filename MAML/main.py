@@ -5,29 +5,26 @@ import json
 import time
 import os
 from torch.utils.data import DataLoader
-import pandas as pd
 import numpy as np
 import torch.multiprocessing as mp
-import torch.nn as nn
 from utils import Logger, AverageMeter, str2bool
-from model import MAML
+from model_attention import MAML
 from loss import Embedding_loss, Feature_loss, Covariance_loss
 import dataset as D
 from metric import get_performance
-import resnet_tv as resnet
 import torch.distributed as dist
-import torchvision.utils as vutils
+
 
 parser = argparse.ArgumentParser(description='MAML')
-parser.add_argument('--save_path', default='./result', type=str,
+parser.add_argument('--save_path', default='./bufftoon_loo_rating_4', type=str,
                     help='savepath')
-parser.add_argument('--batch_size', default=512, type=int,
+parser.add_argument('--batch_size', default=840, type=int,
                     help='batch size')
-parser.add_argument('--epoch', default=200, type=int,
+parser.add_argument('--epoch', default=50, type=int,
                     help='train epoch')
-parser.add_argument('--data_path', default='/daintlab/data/recommend/Movielens-raw', type=str,
+parser.add_argument('--data_path', default='/daintlab/data/bufftoon', type=str,
                     help='Path to rating data')
-parser.add_argument('--embed_dim', default=64, type=int,
+parser.add_argument('--embed_dim', default=128, type=int,
                     help='Embedding Dimension')
 parser.add_argument('--dropout_rate', default=0.2, type=float,
                     help='Dropout rate')
@@ -47,36 +44,26 @@ parser.add_argument('--load_path', default=None, type=str,
                     help='Path to saved model')
 parser.add_argument('--eval_freq', default=50, type=int,
                     help='evaluate performance every n epoch')
-parser.add_argument('--feature_type', default='img', type=str,
-                    help='Type of feature to use. [all, img, txt]')
-parser.add_argument('--eval_type', default='ratio-split', type=str,
+parser.add_argument('--feature_type', default='rating', type=str,
+                    help='Type of feature to use. [rating, all, img, txt]')
+parser.add_argument('--eval_type', default='leave-one-out', type=str,
                     help='Evaluation protocol. [ratio-split, leave-one-out]')
 parser.add_argument('--cnn_path', default='./pretrained_model/resnet18.pth', type=str,
                     help='Path to feature data')
-parser.add_argument('--ddp_port', default='22222', type=str,
+parser.add_argument('--fine_tuning', default=False, type=bool,
+                    help='Fine tuning')
+parser.add_argument('--hier_attention', default=False, type=bool,
+                    help='Hierarchical attention')
+parser.add_argument('--ddp_port', default='88888', type=str,
                     help='DDP Port')
+parser.add_argument('--att_wd', default=100, type=float)
 args = parser.parse_args()
 
 
 def main(rank, args):
-#def main():
     # Initialize Each Process
     init_process(rank, args.world_size)
-    # hyper_params={
-    #     "batch_size":args.batch_size,
-    #     "epoch":args.epoch,
-    #     "embed_dim":args.embed_dim,
-    #     "dropout_rate":args.dropout_rate,
-    #     "learning_rate":args.lr,
-    #     "margin":args.margin,
-    #     "feat_weight":args.feat_weight,
-    #     "cov_weight":args.cov_weight,
-    #     "top_k":args.top_k,
-    #     "num_neg":args.num_neg,
-    #     "eval_freq":args.eval_freq,
-    #     "feature_type":args.feature_type,
-    #     "eval_type":args.eval_type
-    # }
+
     # Set save path
     save_path = args.save_path
     if not os.path.exists(save_path) and dist.get_rank() == 0:
@@ -85,13 +72,6 @@ def main(rank, args):
         with open(save_path + '/configuration.json', 'w') as f:
             json.dump(args.__dict__, f, indent=2)
 
-    # if dist.get_rank() == 0:
-    #     experiment = Experiment(api_key="ZSGBzbLxOxZe4qEZ917ZbOV1m",project_name='recommend',log_code=False,
-    #     auto_param_logging=False, auto_metric_logging=False, log_env_details=False, log_git_metadata=False,
-    #     log_git_patch=False)
-    #     experiment.log_parameters(hyper_params)
-    # else:
-    #     experiment=Experiment(api_key="ZSGBzbLxOxZe4qEZ917ZbOV1m",disabled=True)
 
     # Load dataset
     print("Loading Dataset")
@@ -110,14 +90,14 @@ def main(rank, args):
                                                                     shuffle=True)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4,
                               collate_fn=my_collate_trn, pin_memory=True, sampler=train_sampler)
-    test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4,
+    test_loader = DataLoader(test_dataset, batch_size=int(args.batch_size/4), shuffle=False, num_workers=4,
                              collate_fn=my_collate_tst, pin_memory=True)
 
     # Model
     t_feature_dim = text_feature[0].shape[-1]
     model = MAML(num_user, num_item, args.embed_dim, args.dropout_rate, args.feature_type, t_feature_dim,
-                 args.cnn_path).cuda(rank)
-    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[rank])
+                 args.cnn_path,args.fine_tuning,rank).cuda(rank)
+    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[rank], find_unused_parameters=True)
 
     if args.load_path is not None:
         checkpoint = torch.load(args.load_path)
@@ -129,12 +109,12 @@ def main(rank, args):
         optimizer = torch.optim.Adam([{'params': model.module.embedding_user.parameters()},
                                       {'params': model.module.embedding_item.parameters()},
                                       {'params': model.module.feature_fusion.parameters()},
-                                      {'params': model.module.attention.parameters(), 'weight_decay': 100.0}],
+                                      {'params': model.module.attention.parameters(), 'weight_decay': args.att_wd}],
                                      lr=args.lr)
     else:
         optimizer = torch.optim.Adam([{'params': model.module.embedding_user.parameters()},
                                       {'params': model.module.embedding_item.parameters()},
-                                      {'params': model.module.attention.parameters(), 'weight_decay': 100.0}],
+                                      {'params': model.module.attention.parameters(), 'weight_decay': args.att_wd}],
                                      lr=args.lr)
     scaler = torch.cuda.amp.GradScaler()
 
@@ -146,26 +126,23 @@ def main(rank, args):
     # Logger
     train_logger = Logger(f'{save_path}/train.log')
     test_logger = Logger(f'{save_path}/test.log')
-    #hit_record_logger = Logger(f'{save_path}/hitrecord.log')
-
     # Train & Eval
     for epoch in range(args.epoch):
         start = time.time()
         train_sampler.set_epoch(epoch)
         train(model, embedding_loss, feature_loss, covariance_loss, optimizer, scaler, train_loader, train_logger,
-              epoch)
+             epoch, args.hier_attention)
         print('epoch time : ', time.time() - start, 'sec/epoch => ', (time.time() - start) / 60, 'min/epoch')
         # Save and test Model every n epoch
-        if (epoch + 1) % args.eval_freq == 0 or epoch == 0:
-            start = time.time()
-            test(model, test_loader, test_logger, epoch)
-            torch.save(model.state_dict(), f"{save_path}/model_{epoch + 1}.pth")
-            print('test time : ', time.time() - start, 'sec/epoch => ', (time.time() - start) / 60, 'min')
-    # cleanup()
-    # experiment.end()
+        if (epoch + 1) % args.eval_freq == 0:
+            if dist.get_rank() == 0:
+                start = time.time()
+                test(model, test_loader, test_logger, epoch, args.hier_attention)
+                torch.save(model.state_dict(), f"{save_path}/model_{epoch + 1}.pth")
+                print('test time : ', time.time() - start, 'sec/epoch => ', (time.time() - start) / 60, 'min')
 
 
-def train(model, embedding_loss, feature_loss, covariance_loss, optimizer, scaler, train_loader, train_logger, epoch):
+def train(model, embedding_loss, feature_loss, covariance_loss, optimizer, scaler, train_loader, train_logger, epoch, hier_attention):
     model.train()
     total_loss = AverageMeter()
     embed_loss = AverageMeter()
@@ -185,7 +162,7 @@ def train(model, embedding_loss, feature_loss, covariance_loss, optimizer, scale
 
             a_u, a_i, a_i_feature, dist_a = model(user, torch.hstack([item_p.unsqueeze(1), item_n]), \
                                                   torch.hstack([t_feature_p.unsqueeze(1), t_feature_n]),
-                                                  torch.hstack([img_p.unsqueeze(1), img_n]))
+                                                  torch.hstack([img_p.unsqueeze(1), img_n]),hier_attention)
 
             # Loss
             loss_e = embedding_loss(dist_a[:, 0], dist_a[:, 1:])
@@ -218,10 +195,6 @@ def train(model, embedding_loss, feature_loss, covariance_loss, optimizer, scale
         iter_time.update(time.time() - end)
         end = time.time()
 
-        # experiment.log_metric("total_loss",total_loss.avg, step=epoch)
-        # experiment.log_metric("embed_loss",embed_loss.avg, step=epoch)
-        # experiment.log_metric("feat_loss",feat_loss.avg, step=epoch)
-        # experiment.log_metric("cov_loss",cov_loss.avg, step=epoch)
 
         if i % 10 == 0 and dist.get_rank() == 0:
             print(f"[{epoch + 1}/{args.epoch}][{i}/{len(train_loader)}] Total loss : {total_loss.avg:.4f} \
@@ -232,11 +205,22 @@ def train(model, embedding_loss, feature_loss, covariance_loss, optimizer, scale
                             feat_loss.avg, cov_loss.avg])
 
 
-def test(model, test_loader, test_logger, epoch):
+def test(model, test_loader, test_logger, epoch, hier_attention):
     model.eval()
-    hr = AverageMeter()
-    hr2 = AverageMeter()
-    ndcg = AverageMeter()
+    hr_10 = AverageMeter()
+    hr2_10 = AverageMeter()
+    ndcg_10 = AverageMeter()
+    hr_5 = AverageMeter()
+    hr2_5 = AverageMeter()
+    ndcg_5 = AverageMeter()
+    hr_3 = AverageMeter()
+    hr2_3 = AverageMeter()
+    ndcg_3 = AverageMeter()
+    hr_1 = AverageMeter()
+    hr2_1 = AverageMeter()
+    ndcg_1 = AverageMeter()
+
+
     data_time = AverageMeter()
     iter_time = AverageMeter()
     user_cat = torch.tensor([]).cuda(dist.get_rank())
@@ -254,7 +238,7 @@ def test(model, test_loader, test_logger, epoch):
                 user.cuda(dist.get_rank(), non_blocking=True), item.cuda(dist.get_rank(), non_blocking=True), \
                 feature.cuda(dist.get_rank(), non_blocking=True), image.cuda(dist.get_rank(), non_blocking=True), \
                 label.cuda(dist.get_rank(), non_blocking=True)
-            _, _, _, score = model(user, item, feature, image)
+            _, _, _, score = model(user, item, feature, image, hier_attention)
             user_cat=torch.cat((user_cat,user))
             score_cat=torch.cat((score_cat, score))
             label_cat=torch.cat((label_cat, label))
@@ -268,31 +252,41 @@ def test(model, test_loader, test_logger, epoch):
         label=label_cat[index]
         score=score_cat[index]
         item=item_cat[index]
+        performance_list=[]
+        for m in [10,5,3,1] :
+            pos_idx = label.nonzero()
+            _, indices = torch.topk(-score, m)
+            recommends = torch.take(item, indices).cpu().detach().numpy()
+            gt_item = item[pos_idx].cpu().detach().numpy()
+            performance = get_performance(gt_item, recommends.tolist())
+            performance = torch.tensor(performance).cuda(dist.get_rank())
+            performance_list.append(performance)
+        hr_10.update(performance_list[0][0].cpu().detach().numpy())
+        hr2_10.update(performance_list[0][1].cpu().detach().numpy())
+        ndcg_10.update(performance_list[0][2].cpu().detach().numpy())
+        hr_5.update(performance_list[1][0].cpu().detach().numpy())
+        hr2_5.update(performance_list[1][1].cpu().detach().numpy())
+        ndcg_5.update(performance_list[1][2].cpu().detach().numpy())
+        hr_3.update(performance_list[2][0].cpu().detach().numpy())
+        hr2_3.update(performance_list[2][1].cpu().detach().numpy())
+        ndcg_3.update(performance_list[2][2].cpu().detach().numpy())
+        hr_1.update(performance_list[3][0].cpu().detach().numpy())
+        hr2_1.update(performance_list[3][1].cpu().detach().numpy())
+        ndcg_1.update(performance_list[3][2].cpu().detach().numpy())
 
-        pos_idx = label.nonzero()
-        _, indices = torch.topk(-score, args.top_k)
-        recommends = torch.take(item, indices).cpu().detach().numpy()
-        gt_item = item[pos_idx].cpu().detach().numpy()
-        performance = get_performance(gt_item, recommends.tolist())
-        performance = torch.tensor(performance).cuda(dist.get_rank())
-
-        hr.update(performance[0].cpu().detach().numpy())
-        hr2.update(performance[1].cpu().detach().numpy())
-        ndcg.update(performance[2].cpu().detach().numpy())
         iter_time.update(time.time() - end)
         end = time.time()
-
-        # experiment.log_metric("hit-ratio",hr.avg,step=epoch)
-        # experiment.log_metric("hit-ratio2",hr2.avg,step=epoch)
-        # experiment.log_metric("ndcg",ndcg.avg,step=epoch)
 
         if k % 50 == 0 and dist.get_rank() == 0:
             print(
                 f"{k + 1} Users tested. Iteration time : {iter_time.avg:.5f}/user Data time : {data_time.avg:.5f}/user")
     if dist.get_rank() == 0:
         print(
-            f"Epoch : [{epoch + 1}/{args.epoch}] Hit Ratio : {hr.avg:.4f} nDCG : {ndcg.avg:.4f} Hit Ratio 2 : {hr2.avg:.4f} Test Time : {iter_time.avg:.4f}/user")
-        test_logger.write([epoch, hr.avg, hr2.avg, ndcg.avg])
+            f"Epoch : [{epoch + 1}/{args.epoch}] Hit Ratio : {hr_10.avg:.4f} nDCG : {ndcg_10.avg:.4f} Hit Ratio 2 : {hr2_10.avg:.4f} Test Time : {iter_time.avg:.4f}/user")
+        test_logger.write([epoch, hr_10.avg, hr2_10.avg, ndcg_10.avg,\
+                           hr_5.avg, hr2_5.avg, ndcg_5.avg,\
+                           hr_3.avg,hr2_3.avg, ndcg_3.avg,\
+                           hr_1.avg, hr2_1.avg, ndcg_1.avg])
 
 
 def my_collate_trn(batch):
