@@ -83,11 +83,11 @@ def main(rank, args):
         with open(save_path + '/configuration.json', 'w') as f:
             json.dump(args.__dict__, f, indent=2)
 
-    # if dist.get_rank() == 0:
-    #     experiment = Experiment(project_name='recommend', disabled=True)
-    #     experiment.log_parameters(args)
-    # else:
-    #     experiment = Experiment(disabled=True)
+    if dist.get_rank() == 0:
+        experiment = Experiment(project_name='recommend', disabled=True)
+        experiment.log_parameters(args)
+    else:
+        experiment = Experiment(disabled=True)
 
     # Load dataset
     print("Loading Dataset")
