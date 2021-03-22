@@ -120,7 +120,7 @@ def main(rank, args):
                         embedding_size=args.embed_dim, dropout=args.dropout_rate,
                         num_layers=args.num_layers, feature_type=args.feature_type, text=t_feature_dim, 
                         extractor_path=args.cnn_path, rank=rank, MLP_dim=MLP_dim, fine_tuning=args.fine_tuning).cuda(rank)
-        print(model)
+    # print(model)
     
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[rank], find_unused_parameters=True)
 
