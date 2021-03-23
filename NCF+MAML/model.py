@@ -207,7 +207,7 @@ class MAML(nn.Module):
                                                     user_embedding.size(2))
             item_embedding = item_embedding.reshape(item_embedding.size(0) * item_embedding.size(1),
                                                     item_embedding.size(2))
-            user_embedding=torch.cat([user_embedding, item_embedding],1)
+        user_embedding=torch.cat([user_embedding, item_embedding],1)
         _, feature_map = v_feature_extractor.feature_list(image)
         feature_map = feature_map[:-1]
         score = []
