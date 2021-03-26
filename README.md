@@ -1,4 +1,4 @@
-# Recommendation
+# Top-K Recommendation with Multimodal Information
 
 ## Data Description
 ### 1) Amazon office
