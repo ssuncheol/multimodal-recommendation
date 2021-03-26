@@ -5,15 +5,17 @@ import argparse
 import random
 
 parser = argparse.ArgumentParser(description='data_split')
-parser.add_argument('--data_path', default='./amazon_dataset/ratings_office.csv', type=str,
+parser.add_argument('--data_path', default='./Amazon-office-raw/ratings.csv', type=str,
                     help='datapath')
-parser.add_argument('--save_path', default='./amazon_dataset', type=str,
+parser.add_argument('--save_path', default='./Amazon-office-raw', type=str,
                     help='savepath')
+parser.add_argument('--negative_sampling', default=True, type=bool,
+                    help='test negative sampling')
 args = parser.parse_args()
 random.seed(1)
 
 ratings=pd.read_csv(args.data_path)
-type=['leave-one-out','ratio-split']
+type=['ratio-split','leave-one-out']
 # indexing user
 user_id=ratings[['userid']].drop_duplicates().reset_index(drop=True)
 user_id['useridx']=pd.DataFrame(np.arange(len(user_id)))
@@ -28,7 +30,7 @@ ratings=ratings.replace({'itemid':itemdict})
 
 # group items according to user index
 items_set=set(item_id['itemidx'])
-ratings['rate'][ratings['rate']>0]=1.0
+#ratings['rate'][ratings['rate']>0]=1.0
 rating1=ratings.groupby('userid')['itemid'].apply(list).reset_index()
 rating2=ratings.groupby('userid')['timestamp'].apply(list).reset_index()
 
@@ -45,10 +47,16 @@ for split_type in type:
 
 
     elif split_type=='ratio-split':
-        ratings['test_positive']=ratings['itemid'].apply(lambda x: random.sample(x, round(len(x)*0.3)))
+        ratings['test_positive']=ratings['itemid'].apply(lambda x: random.sample(x, round(len(x)*0.2)))
         ratings['itemid']=ratings.apply(lambda x: list(set(x['itemid'])-set(x['test_positive'])), axis=1)
         ratings['train_negative']=ratings.apply(lambda x: list(items_set - set(x['itemid'])),axis=1)
-        ratings['test_negative']=ratings.apply(lambda x: list(items_set - set(x['itemid'])- set(x['test_positive'])), axis=1)
+        if args.negative_sampling:
+            ratings['test_negative']=ratings.apply(lambda x: random.sample(list(items_set - set(x['itemid'])- set(x['test_positive'])),len(x['test_positive']*10))
+                                                if len(x['test_positive'])*10 <= len(list(items_set-set(x['itemid'])-set(x['test_positive']))) else list(items_set - set(x['itemid'])- set(x['test_positive'])), axis=1)
+
+        else :
+            ratings['test_negative']=ratings.apply(lambda x: list(items_set - set(x['itemid'])- set(x['test_positive'])), axis=1)
+        ratings['train_negative'] = ratings.apply(lambda x: list(set(x['train_negative'])-set(x['test_negative'])), axis=1)
 
     ratings.rename(columns = {'itemid':'train_positive'}, inplace = True)
     ratings = ratings[['userid','train_positive','test_positive','train_negative', 'test_negative']].reset_index(drop=True)
