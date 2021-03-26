@@ -1,14 +1,23 @@
 # Top-K Recommendation with Multimodal Information
 
-## Data Description
+## Data Preparation
 ### 1) Amazon office
-Amazon Review(Office) Dataset can be downloaded here<br>
-[Amazon Office dataset(raw)](https://drive.google.com/drive/u/0/folders/1NMvsUaaSW9nxtMRnGcQw-8eNY1pjvAJY)
+Amazon Review(Office) Dataset can be downloaded here
+[Amazon Review Dataset](https://nijianmo.github.io/amazon/index.html)
 
-- ratingse.csv (Rating data, userid::itemid::rating::timestamp)
-- item_meta.json (Item meta data)
-- image.zip (Image of items)
-- text_feature_vec.pickle (Text feature vector)
+데이터는 아래와 같이 준비되어야 합니다.</br>
+```
+data / ratings.csv
+     / image                    / office / B01HEFLV4M.png
+     / text_feature_vec.pickle
+     / item_meta.json
+```
+
+
+- ratings.csv : Rating data. Each column is userid::itemid::rating::timestamp.
+- image/ : Image of items.
+- text_feature_vec.pickle : Text feature vector
+- item_meta.json : Item meta data.
 
 (rating : 418,400, item : 18,316, user : 54,084)
 #### Sample item_meta.json:
