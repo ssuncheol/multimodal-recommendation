@@ -191,7 +191,8 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py --data_path <Your data path> --save_
                  / test.log
 ```
 </br>
-* configuration.json : 실험에 사용된 configuration.</br>
-* model_epoch.pth : evaluation을 수행한 epoch에서의 model.</br>
-* train.log : 매 epoch에서의 train loss. [epoch::total loss::margin loss(MAML)::feature loss(MAML)::covariance loss(MAML)]</br>
-* test.log : Evaluation epoch에서의 test performance. [epoch::HR@k::HR@k-ratio::nDCG@k]
+
+`configuration.json` : 실험에 사용된 configuration.</br>
+`model_epoch.pth` : evaluation을 수행한 epoch에서의 model.</br>
+`train.log` : 매 epoch에서의 train loss. [epoch::total loss::margin loss(MAML)::feature loss(MAML)::covariance loss(MAML)]</br>
+`test.log` : Evaluation epoch에서의 test performance. [epoch::HR@k::HR@k-ratio::nDCG@k]
