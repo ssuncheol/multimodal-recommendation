@@ -126,7 +126,7 @@ The following results will be saved in ```<Your save path>```
               /item_index.csv
 ```
 
-최종적으로 데이터는 아래와 같이 준비됩니다.
+최종적으로 데이터는 아래와 같이 준비됩니다. ```--data_path``` argument에 해당 경로를 적용해주면 되겠습니다.
 
 ```
 data / ratings.csv
@@ -150,10 +150,48 @@ data / ratings.csv
 
 ## Usage
 
-모델 학습&테스트 코드는 ```NCF+MAML``` 내에 있습니다. 코드는 Distributed Data Parallel 환경에서 작동하도록 구현되어 있으며, 코드에 사용된 argument에 대한 정보는 [여기]를 참고하시기 바랍니다.
+모델 학습 & 테스트 코드는 ```NCF+MAML``` 내에 있습니다. 코드는 Distributed Data Parallel 환경에서 작동하도록 구현되어 있으며, 코드에 사용된 argument에 대한 정보는 [여기](https://github.com/dltkddn0525/recommendation/blob/master/NCF%2BMAML/README.md)를 참고하시기 바랍니다.
 
-- Train **MAML** on **Amazon office dataset**, evaluate with **ratio-split** protocol, using **img+txt** data.(4 GPUs)
+- Train **MAML** , evaluate with **ratio-split** protocol, using **img+txt** data, perform **Top-10** recommendation.(4 GPUs)
 ```
-CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py
+CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py --data_path <Your data path> --save_path <Your save path> \
+                                            --model MAML --eval_type ratio-split --feature_type all \
+                                            --cnn_path <Your cnn path> --epoch 50 --top_k 10 \
+                                            --embed_dim 64 --margin 1.0 --feat_weight 1.0 --cov_weight 1.0
 ```
 
+- Train **NCF** , evaluate with **ratio-split** protocol, using **img+txt** data, perform **Top-10** recommendation.(4 GPUs)
+```
+CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py --data_path <Your data path> --save_path <Your save path> \
+                                            --model NCF --eval_type ratio-split --feature_type all \
+                                            --cnn_path <Your cnn path> --epoch 30 --top_k 10 \
+                                            --embed_dim 16 --MLP_dim '96,128,64,64,32,32'
+```
+- Train **MAML** , evaluate with **leave-one-out** protocol, using **rating** data, perform **Top-10** recommendation.(4 GPUs)
+```
+CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py --data_path <Your data path> --save_path <Your save path> \
+                                            --model MAML --eval_type leave-one-out --feature_type rating \
+                                            --cnn_path <Your cnn path> --epoch 50 --top_k 10 \
+                                            --embed_dim 64 --margin 1.0 --feat_weight 1.0 --cov_weight 1.0
+```
+
+- Train **NCF** , evaluate with **leave-one-out** protocol, using **rating** data, perform **Top-10** recommendation.(4 GPUs)
+```
+CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py --data_path <Your data path> --save_path <Your save path> \
+                                            --model NCF --eval_type leave-one-out --feature_type rating \
+                                            --cnn_path <Your cnn path> --epoch 30 --top_k 10 \
+                                            --embed_dim 16 --MLP_dim '96,128,64,64,32,32'
+```
+
+- Result
+```
+<Your_save_path> / configuration.json
+                 / model_<epoch>.pth
+                 / train.log
+                 / test.log
+```
+</br>
+* configuration.json : 실험에 사용된 configuration.</br>
+* model_epoch.pth : evaluation을 수행한 epoch에서의 model.</br>
+* train.log : 매 epoch에서의 train loss. [epoch::total loss::margin loss(MAML)::feature loss(MAML)::covariance loss(MAML)]</br>
+* test.log : Evaluation epoch에서의 test performance. [epoch::HR@k::HR@k-ratio::nDCG@k]
