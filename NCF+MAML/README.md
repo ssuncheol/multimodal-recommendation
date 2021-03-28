@@ -24,7 +24,7 @@
 |cnn_path|str|path to imagenet pretrained ResNet18 model. if None, randomly initialized.|./resnet18.pth|
 |ddp_port|str|ddp master port|22222|
 |ddp_addr|str|ddp master address|127.0.0.1|
-|fine_tuning|bool|Whether to apply fine tuning|False|
+|fine_tuning|bool|Whether to apply fine tuning. If False, resnet18 will be freezed|False|
 |hier_attention|bool|Whether to apply hierarchical attention|False|
 
 <hr>
