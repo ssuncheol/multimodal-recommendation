@@ -8,14 +8,6 @@ Pytorch implementation of [Neural Collaborative Filtering](https://arxiv.org/abs
 
 [Official Code](https://img.shields.io/github/stars/hexiangnan/neural_collaborative_filtering.svg?logo=github&label=Stars)
 
----
-
-#### multimodal feature of datasets
-- Image → Resnet18 → [512 dim vector]
-- Text → Doc2Vec → [300 dim vector]
-
----
-
 
 ## Arguments 
 
@@ -62,14 +54,4 @@ The following results will be saved in ```<Your save path>```
 - train.log ( epoch, total loss, embedding loss, feature loss, covariance loss )
 - test.log ( epoch, hit ratio, nDCG )
 - model.pth (model saved every n epoch)
-
-
-
-## Performance metrics
-- [x] **HR@10**
-- [x] **NDCG@10**
----
-
-## Result
-
 
