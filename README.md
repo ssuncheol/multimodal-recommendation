@@ -2,7 +2,7 @@
 
 ## Data Preparation
 ### 1) Amazon office
-Amazon Review(Office) Dataset can be downloaded here
+Amazon Review(Office) Dataset can be downloaded here(5-core).
 [Amazon Review Dataset](https://nijianmo.github.io/amazon/index.html)
 
 데이터는 아래와 같이 준비되어야 합니다.</br>
@@ -13,13 +13,11 @@ data / ratings.csv
      / item_meta.json
 ```
 
+- ratings.csv : Rating data. 각 열은 다음과 같습니다. userid::itemid::rating::timestamp.
+- image/ : Item의 이미지가 저장된 디렉토리입니다. 이미지 파일 명은 ```item_id.png```로 저장합니다.
+- text_feature_vec.pickle : Item description을 이용해서 Doc2Vec 모델을 학습한 후 추출한 text feature vector입니다. 
+- item_meta.json : Item meta 정보가 담긴 dictionary 파일입니다. Item의 이미지 경로가 반드시 들어가야 하며, 예시는 아래를 참고하시기 바랍니다.
 
-- ratings.csv : Rating data. Each column is userid::itemid::rating::timestamp.
-- image/ : Image of items.
-- text_feature_vec.pickle : Text feature vector
-- item_meta.json : Item meta data.
-
-(rating : 418,400, item : 18,316, user : 54,084)
 #### Sample item_meta.json:
 ```
 {'B01HEFLV4M' : {'itemid': 'B01HEFLV4M',
@@ -35,19 +33,33 @@ data / ratings.csv
   'B01CT2SHIS' : { ... }
     ...}
 ```
+- Meta data, image, item description이 없는 item 제외
+- 5개 미만의 item을 구매한 user 제외
+- 중복 제거 </br>
 
+(rating : 418,400, item : 18,316, user : 54,084)
 
 ### 2) Movielens-1M
 Movielens Dataset can be downloaded here<br>
-[Movielens dataset(raw)](https://drive.google.com/drive/folders/1iRU83v1Ut8RwsH2RAlE2cYPy2iwzsEPg)
+[Movielens 1M dataset](https://grouplens.org/datasets/movielens/1m/)
 
-- ratings.csv (Rating data, userid::itemid::rating::timestamp)
-- user_meta.json (User meta data)
-- item_meta.json (Movie meta data)
-- image.zip (Image of posters, 'movieid.jpg')
-- text_feature_vec.pickle (Text feature vector)
+[OMDb API](http://www.omdbapi.com/)에서 크롤링을 이용하여 multimodal data 구성하였습니다.
 
-(rating : 991,276, item : 3,659, user : 6,040)
+데이터는 아래와 같이 준비되어야 합니다.</br>
+```
+data / ratings.csv
+     / image_movielens         / poster / 1.png
+     / text_feature_vec.pickle
+     / user_meta.json
+     / item_meta.json
+```
+
+- ratings.csv : Rating data. 각 열은 다음과 같습니다. userid::itemid::rating::timestamp.
+- image_movielens/ : Item의 포스터가 저장된 디렉토리입니다. 이미지 파일 명은 ```item_id.png```로 저장합니다.
+- text_feature_vec.pickle : Item의 줄거리+제목을 이용해서 Doc2Vec 모델을 학습한 후 추출한 text feature vector입니다.
+- user_meta.json :  User meta 정보가 담긴 dictionary 파일입니다. 예시는 아래를 참고하시기 바랍니다.
+- item_meta.json : Item meta 정보가 담긴 dictionary 파일입니다. Item의 이미지 경로가 반드시 들어가야 하며, 예시는 아래를 참고하시기 바랍니다.
+
 #### Sample user_meta.json :
 ```
 {'1': {'userid': '1', 'sex': 'F', 'age': '1', 'occupation': '10', 'zip_code': '48067'}
@@ -86,22 +98,54 @@ Movielens Dataset can be downloaded here<br>
   '2': { ... }
     ...}
 ```
-  
-## Data split
-### Usage
+
+- OMDb API에서 검색되지 않는 item 제외
+- Image, title, plot(줄거리)가 없는 item 제외
+- 모든 user가 평가하지 않은 item 제외
+
+(rating : 991,276, item : 3,659, user : 6,040)
+
+### 3)Data split
+
+아래 코드를 이용해서 2 가지 evaluation protocol에 맞게 train-test 데이터를 나눕니다.
+
 ```
 python data_split.py --data_path <Your data path/ratings.csv> --save_path <Your save path>
 ```
 The following results will be saved in ```<Your save path>```
 ```
- * leave-one-out/train_positive.ftr
-                /test_positive.ftr
-                /train_negative.ftr
-                /test_negative.ftr
- * ratio-split/train_positive.ftr
+ leave-one-out/train_positive.ftr
               /test_positive.ftr
               /train_negative.ftr
               /test_negative.ftr
- * index-info/user_index.csv
-             /item_index.csv
+ ratio-split  /train_positive.ftr
+              /test_positive.ftr
+              /train_negative.ftr
+              /test_negative.ftr
+ index-info   /user_index.csv
+              /item_index.csv
 ```
+
+최종적으로 데이터는 아래와 같이 준비됩니다.
+
+```
+data / ratings.csv
+     / image_dir /
+     / text_feature_vec.pickle
+     / user_meta.json(if available)
+     / item_meta.json
+     / leave-one-out/train_positive.ftr
+                    /test_positive.ftr
+                    /train_negative.ftr
+                    /test_negative.ftr
+     / ratio-split  /train_positive.ftr
+                    /test_positive.ftr
+                    /train_negative.ftr
+                    /test_negative.ftr
+     / index-info   /user_index.csv
+                    /item_index.csv
+     
+```
+<hr>
+
+## Usage
