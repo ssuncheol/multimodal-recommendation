@@ -20,9 +20,9 @@ parser.add_argument('--save_path', default='./bufftoon_loo_rating_4', type=str,
                     help='savepath')
 parser.add_argument('--batch_size', default=840, type=int,
                     help='batch size')
-parser.add_argument('--epoch', default=50, type=int,
+parser.add_argument('--epoch', default=1, type=int,
                     help='train epoch')
-parser.add_argument('--data_path', default='/daintlab/data/bufftoon', type=str,
+parser.add_argument('--data_path', default='/daintlab/data/recommend/Amazon-office-raw', type=str,
                     help='Path to rating data')
 parser.add_argument('--embed_dim', default=128, type=int,
                     help='Embedding Dimension')
@@ -131,7 +131,7 @@ def main(rank, args):
         start = time.time()
         train_sampler.set_epoch(epoch)
         train(model, embedding_loss, feature_loss, covariance_loss, optimizer, scaler, train_loader, train_logger,
-             epoch, args.hier_attention)
+            epoch, args.hier_attention)
         print('epoch time : ', time.time() - start, 'sec/epoch => ', (time.time() - start) / 60, 'min/epoch')
         # Save and test Model every n epoch
         if (epoch + 1) % args.eval_freq == 0:
