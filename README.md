@@ -149,3 +149,11 @@ data / ratings.csv
 <hr>
 
 ## Usage
+
+모델 학습&테스트 코드는 ```NCF+MAML``` 내에 있습니다. 코드는 Distributed Data Parallel 환경에서 작동하도록 구현되어 있으며, 코드에 사용된 argument에 대한 정보는 [여기]를 참고하시기 바랍니다.
+
+- Train **MAML** on **Amazon office dataset**, evaluate with **ratio-split** protocol, using **img+txt** data.(4 GPUs)
+```
+CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py
+```
+
