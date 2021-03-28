@@ -2,7 +2,7 @@
 
 ## Data Preparation
 ### 1) Amazon office
-Amazon Review(Office) Dataset can be downloaded here(5-core).
+Amazon Review(Office) Dataset can be downloaded here(5-core).</br>
 [Amazon Review Dataset](https://nijianmo.github.io/amazon/index.html)
 
 데이터는 아래와 같이 준비되어야 합니다.</br>
