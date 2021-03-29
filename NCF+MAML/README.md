@@ -7,9 +7,8 @@
 |batch_size|int|batch size|840|
 |epochs|int|train epoch|50|
 |data_path|str|path of rating data|/daintlab/data/recommend/Amazon-office-raw|
-|num_layers|int|number of MLP's layer in NCF|5|
+|num_layers|int|number of MLP's layer in NCF|4|
 |embed_dim|int|embedding dimension|64|
-|MLP_dim|str|MLP's dimension in NCF|96,128,64,64,32,32|
 |dropout_rate|float|droupout rate|0.2|
 |lr|float|Learning Rate|0.001|
 |margin|float|margin of embedding loss in MAML|1.0|
