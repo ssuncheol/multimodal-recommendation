@@ -165,7 +165,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py --data_path <Your data path> --save_
 CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py --data_path <Your data path> --save_path <Your save path> \
                                             --model NCF --eval_type ratio-split --feature_type all \
                                             --cnn_path <Your cnn path> --epoch 30 --top_k 10 \
-                                            --embed_dim 16 --MLP_dim '96,128,64,64,32,32'
+                                            --embed_dim 16 --num_layers 4
 ```
 - Train **MAML** , evaluate with **leave-one-out** protocol, using **rating** data, perform **Top-10** recommendation.(4 GPUs)
 ```
@@ -180,7 +180,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py --data_path <Your data path> --save_
 CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py --data_path <Your data path> --save_path <Your save path> \
                                             --model NCF --eval_type leave-one-out --feature_type rating \
                                             --cnn_path <Your cnn path> --epoch 30 --top_k 10 \
-                                            --embed_dim 16 --MLP_dim '96,128,64,64,32,32'
+                                            --embed_dim 16 --num_layers 4
 ```
 
 - Result
