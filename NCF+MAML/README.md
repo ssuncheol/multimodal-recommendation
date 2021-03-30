@@ -4,7 +4,7 @@
 |:---:|:---:|:---:|:---:|
 |model|str|model type to use. [MAML, NCF]|MAML|
 |save_path|str|save path|./result|
-|batch_size|int|batch size|840|
+|batch_size|int|Total batch size. Each GPU will have batch_size/world_size|840|
 |epochs|int|train epoch|50|
 |data_path|str|path of rating data|/daintlab/data/recommend/Amazon-office-raw|
 |num_layers|int|number of MLP's layer in NCF|4|
