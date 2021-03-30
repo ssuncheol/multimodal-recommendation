@@ -1,5 +1,15 @@
 # Top-K Recommendation with Multimodal Information
 
+<hr>
+
+## Requirements
+
+```
+torch>=1.7
+torchvision>=0.7
+```
+<hr>
+
 ## Data Preparation
 ### 1) Amazon office
 Amazon Review(Office) Dataset can be downloaded here(5-core).</br>
