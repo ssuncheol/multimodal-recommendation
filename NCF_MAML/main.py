@@ -50,7 +50,7 @@ parser.add_argument('--load_path', default=None, type=str,
                     help='Path to saved model')
 parser.add_argument('--eval_freq', default=50, type=int,
                     help='evaluate performance every n epoch')
-parser.add_argument('--feature_type', default='img', type=str,
+parser.add_argument('--feature_type', default='rating', type=str,
                     help='Type of feature to use. [all, img, txt, rating]')                   
 parser.add_argument('--eval_type', default='ratio-split', type=str,
                     help='Evaluation protocol. [ratio-split, leave-one-out]')
