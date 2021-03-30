@@ -20,12 +20,14 @@
 |eval_freq|int|evaluate performance every n epoch|50|
 |feature_type|str|type of feature to use. [all, img, txt, rating]|rating|
 |eval_type|str|evaluation protocol. [ratio-split, leave-one-out]|ratio-split|
-|cnn_path|str|path to imagenet pretrained ResNet18 model. if None, randomly initialized.|./resnet18.pth|
+|cnn_path|str|path to imagenet pretrained ResNet18 model. if None, randomly initialized.|'./resnet18.pth'|
 |ddp_port|str|ddp master port|22222|
 |ddp_addr|str|ddp master address|127.0.0.1|
 |fine_tuning|bool|Whether to apply fine tuning. If False, resnet18 will be freezed|False|
 |hier_attention|bool|Whether to apply hierarchical attention|False|
 
+
+- [Pytorch에서 제공하는 Imagenet pretrained ResNet18](https://download.pytorch.org/models/resnet18-5c106cde.pth)
 <hr>
 
 ## References
