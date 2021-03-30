@@ -38,7 +38,7 @@ Pytorch implementation of [User Diverse Preferences Modeling By Multimodal Atten
 [Official Code](https://github.com/liufancs/MAML#user-diverse-preferences-modeling-by-multimodal-attentive-metric-learning)
 
 ### Neural Collaborative Filtering With Side Information 
-Pytorch implementation of [Neural Collaborative Filtering](https://arxiv.org/abs/1708.05031)
+Pytorch implementation of [Neural Collaborative Filtering(He et al., 2017)](https://arxiv.org/abs/1708.05031)
 
 [Official Code](https://img.shields.io/github/stars/hexiangnan/neural_collaborative_filtering.svg?logo=github&label=Stars)
 
