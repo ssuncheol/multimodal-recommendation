@@ -68,7 +68,10 @@ class NeuralCF(nn.Module):
             input_size = 2 * embedding_size 
             print("MLP FEATURE 0")
 
-        MLP_dim = [input_size, input_size, input_size//2, input_size//2, embedding_size]
+        if num_layers == 4:
+            MLP_dim = [input_size, input_size, input_size//2, input_size//2, embedding_size]
+        else:
+            MLP_dim = [input_size, input_size, input_size//2, embedding_size]
         MLP_modules = []
         for i in range(num_layers):
             if i == 0:
