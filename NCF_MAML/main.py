@@ -26,11 +26,11 @@ parser.add_argument('--batch_size', default=840, type=int,
                     help='Total batch size')
 parser.add_argument('--epoch', default=50, type=int,
                     help='train epoch')
-parser.add_argument('--data_path', default='/daintlab/data/recommend/Movielens-raw', type=str,
+parser.add_argument('--data_path', default='/daintlab/data/recommend/Amazon-clothing-raw', type=str,
                     help='Path to rating data')
 parser.add_argument('--num_layers', default=4, type=int,
                     help='number of used layers in NCF')
-parser.add_argument('--embed_dim', default=64, type=int,
+parser.add_argument('--embed_dim', default=32, type=int,
                     help='Embedding Dimension')
 parser.add_argument('--dropout_rate', default=0.2, type=float,
                     help='Dropout rate')
@@ -48,7 +48,7 @@ parser.add_argument('--num_neg', default=4, type=int,
                     help='Number of negative samples for training')
 parser.add_argument('--load_path', default=None, type=str,
                     help='Path to saved model')
-parser.add_argument('--eval_freq', default=50, type=int,
+parser.add_argument('--eval_freq', default=1, type=int,
                     help='evaluate performance every n epoch')
 parser.add_argument('--feature_type', default='rating', type=str,
                     help='Type of feature to use. [all, img, txt, rating]')                   
@@ -162,7 +162,7 @@ def main(rank, args):
         else:
             train(model=model, model_type=args.model, optimizer=optimizer,
                  scaler=scaler, train_loader=train_loader, train_logger=train_logger,
-                 epoch=epoch, criterion=criterion)
+                 epoch=epoch, criterion=criterion, hier_attention=args.hier_attention)
         if dist.get_rank() == 0:
             print('epoch time : ', time.time() - start, 'sec/epoch => ', (time.time() - start) / 60, 'min/epoch')
         # Save and test Model every n epoch
@@ -210,7 +210,7 @@ def train(model, model_type, optimizer, scaler, train_loader, train_logger, epoc
                 user, item, rating, t_feature, img = user.cuda(dist.get_rank()), item.cuda(dist.get_rank()), \
                                                     rating.cuda(dist.get_rank()), t_feature.cuda(dist.get_rank()), \
                                                     img.cuda(dist.get_rank())
-                score = model(user, item, image=img, text=t_feature, feature_type=args.feature_type)
+                score = model(user, item, image=img, text=t_feature, feature_type=args.feature_type, hier_attention=kwargs['hier_attention'])
             # Loss
             if model_type == "MAML":
                 loss_e = embedding_loss(dist_a[:, 0], dist_a[:, 1:])
@@ -269,12 +269,22 @@ def train(model, model_type, optimizer, scaler, train_loader, train_logger, epoc
 
 def test(model, model_type, test_loader, test_logger, epoch, test_pos_item_num, item_num_dict, **kwargs):
     model.eval()
-    hr = AverageMeter()
-    hr2 = AverageMeter()
-    ndcg = AverageMeter()
+    hr_1 = AverageMeter()
+    hr2_1 = AverageMeter()
+    ndcg_1 = AverageMeter()
+    hr_3 = AverageMeter()
+    hr2_3 = AverageMeter()
+    ndcg_3 = AverageMeter()
+    hr_5 = AverageMeter()
+    hr2_5 = AverageMeter()
+    ndcg_5 = AverageMeter()
+    hr_10 = AverageMeter()
+    hr2_10 = AverageMeter()
+    ndcg_10 = AverageMeter()
     data_time = AverageMeter()
     iter_time = AverageMeter()
-    
+    k = [1, 3, 5, 10]
+
     score_cat=torch.tensor([]).cuda(dist.get_rank())
     
     end = time.time()
@@ -289,7 +299,7 @@ def test(model, model_type, test_loader, test_logger, epoch, test_pos_item_num, 
             if model_type == "MAML":
                 _, _, _, score = model(user, item, feature, image, kwargs['hier_attention'])
             else: # NCF
-                score = model(user, item, image=image, text=feature, feature_type=args.feature_type)
+                score = model(user, item, image=image, text=feature, feature_type=args.feature_type, hier_attention=kwargs['hier_attention'])
             score_cat=torch.cat((score_cat, score))
 
             if (i % 500) == 0 and (dist.get_rank() == 0):
@@ -298,17 +308,31 @@ def test(model, model_type, test_loader, test_logger, epoch, test_pos_item_num, 
             while(len(score_cat) >= item_num_dict[user_count]): 
                 score_sub_tensor = score_cat[:item_num_dict[user_count]]
                 score_cat = score_cat[item_num_dict[user_count]:]
-                if model_type == "MAML":
-                    _, indices = torch.topk(-score_sub_tensor, args.top_k)
-                else: # NCF
-                    _, indices = torch.topk(score_sub_tensor, args.top_k)    
-                recommends = indices
-                gt_item = torch.tensor(range(test_pos_item_num[user_count])).cuda(dist.get_rank())
-                performance = get_performance(gt_item, recommends)
-                performance = torch.tensor(performance).cuda(dist.get_rank())
-                hr.update(performance[0])
-                hr2.update(performance[1])
-                ndcg.update(performance[2])
+                for i in k:
+                    if model_type == "MAML":
+                        _, indices = torch.topk(-score_sub_tensor, i)
+                    else: # NCF
+                        _, indices = torch.topk(score_sub_tensor, i)    
+                    recommends = indices
+                    gt_item = torch.tensor(range(test_pos_item_num[user_count])).cuda(dist.get_rank())
+                    performance = get_performance(gt_item, recommends)
+                    performance = torch.tensor(performance).cuda(dist.get_rank())
+                    if i == 1:
+                        hr_1.update(performance[0])
+                        hr2_1.update(performance[1])
+                        ndcg_1.update(performance[2])
+                    elif i == 3:
+                        hr_3.update(performance[0])
+                        hr2_3.update(performance[1])
+                        ndcg_3.update(performance[2])
+                    elif i == 5:
+                        hr_5.update(performance[0])
+                        hr2_5.update(performance[1])
+                        ndcg_5.update(performance[2])
+                    else:
+                        hr_10.update(performance[0])
+                        hr2_10.update(performance[1])
+                        ndcg_10.update(performance[2])
                 user_count += 1
                 iter_time.update(time.time() - end)
                 end = time.time()
@@ -317,8 +341,9 @@ def test(model, model_type, test_loader, test_logger, epoch, test_pos_item_num, 
 
     if dist.get_rank() == 0:
         print(f"{user_count} Users tested. Iteration time : {iter_time.avg:.5f}/user Data time : {data_time.avg:.5f}/user")
-        print(f"Epoch : [{epoch + 1}/{args.epoch}] Hit Ratio : {hr.avg:.4f} nDCG : {ndcg.avg:.4f} Hit Ratio 2 : {hr2.avg:.4f} Test Time : {iter_time.avg:.4f}/user")
-        test_logger.write([epoch, float(hr.avg), float(hr2.avg), float(ndcg.avg)])
+        print(f"Epoch : [{epoch + 1}/{args.epoch}] Hit Ratio : {hr_10.avg:.4f} nDCG : {ndcg_10.avg:.4f} Hit Ratio 2 : {hr2_10.avg:.4f} Test Time : {iter_time.avg:.4f}/user")
+        test_logger.write([epoch, float(hr_1.avg), float(hr2_1.avg), float(ndcg_1.avg), float(hr_3.avg), float(hr2_3.avg), float(ndcg_3.avg)
+                            , float(hr_5.avg), float(hr2_5.avg), float(ndcg_5.avg), float(hr_10.avg), float(hr2_10.avg), float(ndcg_10.avg)])
 
 
 def my_collate_trn(batch):
