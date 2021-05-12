@@ -64,6 +64,7 @@ parser.add_argument('--fine_tuning', default=False, type=bool,
                     help='Fine tuning')
 parser.add_argument('--hier_attention', default=False, type=bool,
                     help='Hierarchical attention')
+parser.add_argument('--att_wd', default=100, type=float)
 args = parser.parse_args()
 
 
@@ -125,12 +126,12 @@ def main(rank, args):
             optimizer = torch.optim.Adam([{'params': model.module.embedding_user.parameters()},
                                         {'params': model.module.embedding_item.parameters()},
                                         {'params': model.module.feature_fusion.parameters()},
-                                        {'params': model.module.attention.parameters(), 'weight_decay': 0.1}],
+                                        {'params': model.module.attention.parameters(), 'weight_decay': args.att_wd}],
                                         lr=args.lr)
         else:
             optimizer = torch.optim.Adam([{'params': model.module.embedding_user.parameters()},
                                         {'params': model.module.embedding_item.parameters()},
-                                        {'params': model.module.attention.parameters(), 'weight_decay': 0.1}],
+                                        {'params': model.module.attention.parameters(), 'weight_decay': args.att_wd}],
                                         lr=args.lr)
     else:
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
