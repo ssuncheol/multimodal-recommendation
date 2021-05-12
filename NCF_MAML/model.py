@@ -14,17 +14,26 @@ class NeuralCF(nn.Module):
         self.item_embedding_gmf = nn.Embedding(num_items, embedding_size)        
         self.user_embedding_mlp = nn.Embedding(num_users, embedding_size)
         self.item_embedding_mlp = nn.Embedding(num_items, embedding_size)
-        
+
         if (kwargs['feature_type'] == 'img') | (kwargs['feature_type'] == 'all'):
             print("IMAGE FEATURE")
-            self.feature_extractor = resnet_tv.resnet18()
-            self.feature_extractor.load_state_dict(torch.load(kwargs['extractor_path'], map_location='cuda:%d' % kwargs['rank']))    
+            self.v_feature_extractor = resnet_tv.resnet18()
+            self.v_feature_extractor.load_state_dict(torch.load(kwargs['extractor_path'], map_location='cuda:%d' % kwargs['rank']))    
+            # attention을 위한 field들
+            self.v_feature_dim = self.v_feature_extractor.fc.in_features
+            self.v_feature_c1 = self.v_feature_extractor.conv1.out_channels
+            self.v_feature_c2 = self.v_feature_extractor.layer1[1].conv2.out_channels
+            self.v_feature_c3 = self.v_feature_extractor.layer2[1].conv2.out_channels
+            self.v_feature_c4 = self.v_feature_extractor.layer3[1].conv2.out_channels
+            self.v_feature_c5 = self.v_feature_extractor.layer4[1].conv2.out_channels
+
             if kwargs['fine_tuning'] == False:
-                self.feature_extractor.eval()
-                for param in self.feature_extractor.parameters():
+                self.v_feature_extractor.eval()
+                for param in self.v_feature_extractor.parameters():
                     param.requires_grad = False
+            
             self.image_embedding = []
-            self.image_embedding.append(nn.Linear(self.feature_extractor.fc.in_features, 256))
+            self.image_embedding.append(nn.Linear(self.v_feature_extractor.fc.in_features, 256))
             self.image_embedding.append(nn.BatchNorm1d(256))
             self.image_embedding.append(nn.ReLU())
             self.image_embedding.append(nn.Linear(256, 128))
@@ -59,7 +68,7 @@ class NeuralCF(nn.Module):
             input_size = 2 * embedding_size 
             print("MLP FEATURE 0")
 
-        MLP_dim = [input_size,input_size,input_size//2,input_size//2,embedding_size]
+        MLP_dim = [input_size, input_size, input_size//2, input_size//2, embedding_size]
         MLP_modules = []
         for i in range(num_layers):
             if i == 0:
@@ -69,7 +78,7 @@ class NeuralCF(nn.Module):
             MLP_modules.append(nn.BatchNorm1d(int(MLP_dim[i+1])))
             MLP_modules.append(nn.ReLU())
             MLP_modules.append(nn.Dropout(p=dropout))
-        
+                
         self.MLP_layers =nn.Sequential(*MLP_modules)
         
         # Predict layer
@@ -77,23 +86,68 @@ class NeuralCF(nn.Module):
 
         self._init_weight_()
 
+        self.conv_key1 = nn.Conv2d(self.v_feature_c1, embedding_size * 2, 1)
+        self.conv_key2 = nn.Conv2d(self.v_feature_c2, embedding_size * 2, 1)
+        self.conv_key3 = nn.Conv2d(self.v_feature_c3, embedding_size * 2, 1)
+        self.conv_key4 = nn.Conv2d(self.v_feature_c4, embedding_size * 2, 1)
+        self.conv_key5 = nn.Conv2d(self.v_feature_c5, embedding_size * 2, 1)
+
+        self.conv_value1 = nn.Conv2d(self.v_feature_c1, self.v_feature_dim, 1)
+        self.conv_value2 = nn.Conv2d(self.v_feature_c2, self.v_feature_dim, 1)
+        self.conv_value3 = nn.Conv2d(self.v_feature_c3, self.v_feature_dim, 1)
+        self.conv_value4 = nn.Conv2d(self.v_feature_c4, self.v_feature_dim, 1)
+        self.cnov_value5 = nn.Conv2d(self.v_feature_c5, self.v_feature_dim, 1)
+
     def _init_weight_(self):
         nn.init.normal_(self.user_embedding_gmf.weight, std=0.01)
         nn.init.normal_(self.user_embedding_mlp.weight, std=0.01)
         nn.init.normal_(self.item_embedding_gmf.weight, std=0.01)
         nn.init.normal_(self.item_embedding_mlp.weight, std=0.01)
-        
-    def forward(self,user_indices,item_indices,**kwargs):
+    
+    def hierarchical_attention(self, v_feature_extractor, key_modules, value_modules, image, user_embedding, item_embedding):
+        if len(user_embedding.size()) == 3:
+            user_embedding = user_embedding.reshape(user_embedding.size(0) * user_embedding.size(1),
+                                                    user_embedding.size(2))
+            item_embedding = item_embedding.reshape(item_embedding.size(0) * item_embedding.size(1),
+                                                    item_embedding.size(2))
+        user_embedding = torch.cat([user_embedding, item_embedding], 1)
+        _, feature_map = v_feature_extractor.feature_list(image)
+        feature_map = feature_map[:-1]
+        score = []
+        for i in range(len(feature_map)):
+            key = key_modules[i](nn.AvgPool2d(feature_map[i].size(-1))(feature_map[i]))
+            score.append(
+                torch.diagonal(torch.matmul(key.squeeze(), torch.transpose(user_embedding, 0, 1))).unsqueeze(1))
+        score = F.softmax(torch.stack(score).squeeze(), dim=0)
+
+        for i in range(len(feature_map)):
+            value = value_modules[i](nn.AvgPool2d(feature_map[i].size(-1))(feature_map[i]))
+            if i == 0:
+                attention_matrix = torch.mul(score[i].unsqueeze(0).T, value.squeeze())
+            else:
+                attention_matrix += torch.mul(score[i].unsqueeze(0).T, value.squeeze())
+
+        return attention_matrix
+    
+    def forward(self, user_indices, item_indices, **kwargs):
+        key_modules = [self.conv_key1, self.conv_key2, self.conv_key3, self.conv_key4, self.conv_key5]
+        value_modules = [self.conv_value1, self.conv_value2, self.conv_value3, self.conv_value4, self.cnov_value5]
+
         user_gmf = self.user_embedding_gmf(user_indices)
         item_gmf = self.item_embedding_gmf(item_indices)
         
         user_mlp = self.user_embedding_mlp(user_indices)
         item_mlp = self.item_embedding_mlp(item_indices)
-        
+
         if (kwargs['feature_type'] == 'img') | (kwargs['feature_type'] == 'all'):
-            _, image = self.feature_extractor.feature_list(kwargs['image'])
-            image = self.image_embedding(image[5])
-            item_mlp = torch.cat([item_mlp,image], -1)
+            if kwargs['hier_attention']:
+                image = self.hierarchical_attention(self.v_feature_extractor, key_modules, value_modules, kwargs['image'],
+                                                        user_mlp, item_mlp)
+                image = self.image_embedding(image)
+            else:
+                _, image = self.v_feature_extractor.feature_list(kwargs['image'])
+                image = self.image_embedding(image[5])
+            item_mlp = torch.cat([item_mlp, image], -1)
         if (kwargs['feature_type'] == 'txt') | (kwargs['feature_type'] == 'all'):
             text = self.text_embedding(kwargs["text"])
             item_mlp = torch.cat([item_mlp,text], -1)
