@@ -22,7 +22,7 @@ parser.add_argument('--model', default='MAML', type=str,
                     help='model type')
 parser.add_argument('--save_path', default='./result', type=str,
                     help='savepath')
-parser.add_argument('--batch_size', default=840, type=int,
+parser.add_argument('--batch_size', default=512, type=int,
                     help='Total batch size')
 parser.add_argument('--epoch', default=50, type=int,
                     help='train epoch')
@@ -30,7 +30,7 @@ parser.add_argument('--data_path', default='/daintlab/data/recommend/Amazon-clot
                     help='Path to rating data')
 parser.add_argument('--num_layers', default=4, type=int,
                     help='number of used layers in NCF')
-parser.add_argument('--embed_dim', default=32, type=int,
+parser.add_argument('--embed_dim', default=256, type=int,
                     help='Embedding Dimension')
 parser.add_argument('--dropout_rate', default=0.2, type=float,
                     help='Dropout rate')
@@ -48,13 +48,13 @@ parser.add_argument('--num_neg', default=4, type=int,
                     help='Number of negative samples for training')
 parser.add_argument('--load_path', default=None, type=str,
                     help='Path to saved model')
-parser.add_argument('--eval_freq', default=1, type=int,
+parser.add_argument('--eval_freq', default=10, type=int,
                     help='evaluate performance every n epoch')
 parser.add_argument('--feature_type', default='rating', type=str,
-                    help='Type of feature to use. [all, img, txt, rating]')                   
+                    help='Type of feature to use. [all, img, txt, rating]')
 parser.add_argument('--eval_type', default='ratio-split', type=str,
                     help='Evaluation protocol. [ratio-split, leave-one-out]')
-parser.add_argument('--cnn_path', default='./resnet18.pth', type=str,
+parser.add_argument('--cnn_path', default='./pretrained_model/resnet18.pth', type=str,
                     help='Path to feature data')
 parser.add_argument('--ddp_port', default='8888', type=str,
                     help='DDP Port')
@@ -64,6 +64,7 @@ parser.add_argument('--fine_tuning', default=False, type=bool,
                     help='Fine tuning')
 parser.add_argument('--hier_attention', default=False, type=bool,
                     help='Hierarchical attention')
+parser.add_argument('--att_type', default=None, type=str)
 parser.add_argument('--att_wd', default=100, type=float)
 args = parser.parse_args()
 
@@ -71,7 +72,7 @@ args = parser.parse_args()
 def main(rank, args):
     # Initialize Each Process
     init_process(rank, args.world_size)
-    
+
     # Set save path
     save_path = args.save_path
     if not os.path.exists(save_path) and dist.get_rank() == 0:
@@ -85,7 +86,8 @@ def main(rank, args):
     data_path = os.path.join(args.data_path, args.eval_type)
     train_df, test_df, train_ng_pool, test_negative, num_user, num_item, text_feature, images, test_pos_item_num, item_num_dict = D.load_data(
         data_path, args.feature_type)
-    train_dataset = D.CustomDataset(args.model, train_df, text_feature, images, negative=train_ng_pool, num_neg=args.num_neg,
+    train_dataset = D.CustomDataset(args.model, train_df, text_feature, images, negative=train_ng_pool,
+                                    num_neg=args.num_neg,
                                     istrain=True, feature_type=args.feature_type)
     test_dataset = D.CustomDataset(args.model, test_df, text_feature, images, negative=test_negative, num_neg=None,
                                    istrain=False, feature_type=args.feature_type)
@@ -98,20 +100,20 @@ def main(rank, args):
                                                                     shuffle=True)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4,
                               collate_fn=my_collate_trn, pin_memory=True, sampler=train_sampler)
-    test_loader = DataLoader(test_dataset, batch_size=int(args.batch_size/4), shuffle=False, num_workers=4,
+    test_loader = DataLoader(test_dataset, batch_size=int(args.batch_size / 4), shuffle=False, num_workers=4,
                              collate_fn=my_collate_tst, pin_memory=True)
 
     # Model
     t_feature_dim = text_feature[0].shape[-1]
     if args.model == 'MAML':
         model = MAML(num_user, num_item, args.embed_dim, args.dropout_rate, args.feature_type, t_feature_dim,
-                 args.cnn_path, args.fine_tuning, rank).cuda(rank)
+                     args.cnn_path, args.fine_tuning, rank, args.att_type).cuda(rank)
     else:
-        model = NeuralCF(num_users=num_user, num_items=num_item, 
-                        embedding_size=args.embed_dim, dropout=args.dropout_rate,
-                        num_layers=args.num_layers, feature_type=args.feature_type, text=t_feature_dim, 
-                        extractor_path=args.cnn_path, rank=rank, fine_tuning=args.fine_tuning).cuda(rank)
-    
+        model = NeuralCF(num_users=num_user, num_items=num_item,
+                         embedding_size=args.embed_dim, dropout=args.dropout_rate,
+                         num_layers=args.num_layers, feature_type=args.feature_type, text=t_feature_dim,
+                         extractor_path=args.cnn_path, rank=rank, fine_tuning=args.fine_tuning, att_type=args.att_type).cuda(rank)
+
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[rank], find_unused_parameters=True)
 
     # Load from checkpoint
@@ -124,21 +126,21 @@ def main(rank, args):
     if args.model == "MAML":
         if args.feature_type != "rating":
             optimizer = torch.optim.Adam([{'params': model.module.embedding_user.parameters()},
-                                        {'params': model.module.embedding_item.parameters()},
-                                        {'params': model.module.feature_fusion.parameters()},
-                                        {'params': model.module.attention.parameters(), 'weight_decay': args.att_wd}],
-                                        lr=args.lr)
+                                          {'params': model.module.embedding_item.parameters()},
+                                          {'params': model.module.feature_fusion.parameters()},
+                                          {'params': model.module.attention.parameters(), 'weight_decay': args.att_wd}],
+                                         lr=args.lr)
         else:
             optimizer = torch.optim.Adam([{'params': model.module.embedding_user.parameters()},
-                                        {'params': model.module.embedding_item.parameters()},
-                                        {'params': model.module.attention.parameters(), 'weight_decay': args.att_wd}],
-                                        lr=args.lr)
+                                          {'params': model.module.embedding_item.parameters()},
+                                          {'params': model.module.attention.parameters(), 'weight_decay': args.att_wd}],
+                                         lr=args.lr)
     else:
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-    
+
     # Mixed precision
     scaler = torch.cuda.amp.GradScaler()
-    
+
     # Loss
     if args.model == "MAML":
         embedding_loss = Embedding_loss(margin=args.margin, num_item=num_item).cuda(rank)
@@ -157,13 +159,13 @@ def main(rank, args):
         train_sampler.set_epoch(epoch)
         if args.model == "MAML":
             train(model=model, model_type=args.model, optimizer=optimizer,
-                 scaler=scaler, train_loader=train_loader, train_logger=train_logger, 
-                 epoch=epoch, embedding_loss=embedding_loss, feature_loss=feature_loss,
-                 covariance_loss=covariance_loss, hier_attention=args.hier_attention)
+                  scaler=scaler, train_loader=train_loader, train_logger=train_logger,
+                  epoch=epoch, embedding_loss=embedding_loss, feature_loss=feature_loss,
+                  covariance_loss=covariance_loss, hier_attention=args.hier_attention)
         else:
             train(model=model, model_type=args.model, optimizer=optimizer,
-                 scaler=scaler, train_loader=train_loader, train_logger=train_logger,
-                 epoch=epoch, criterion=criterion, hier_attention=args.hier_attention)
+                  scaler=scaler, train_loader=train_loader, train_logger=train_logger,
+                  epoch=epoch, criterion=criterion, hier_attention=args.hier_attention)
         if dist.get_rank() == 0:
             print('epoch time : ', time.time() - start, 'sec/epoch => ', (time.time() - start) / 60, 'min/epoch')
         # Save and test Model every n epoch
@@ -171,10 +173,11 @@ def main(rank, args):
             start = time.time()
             if dist.get_rank() == 0:
                 torch.save(model.state_dict(), f"{save_path}/model_{epoch + 1}.pth")
-                test(model=model, model_type=args.model, test_loader=test_loader, test_logger=test_logger, epoch=epoch, 
-                    test_pos_item_num=test_pos_item_num, item_num_dict=item_num_dict, hier_attention=args.hier_attention)
+                test(model=model, model_type=args.model, test_loader=test_loader, test_logger=test_logger, epoch=epoch,
+                     test_pos_item_num=test_pos_item_num, item_num_dict=item_num_dict,
+                     hier_attention=args.hier_attention)
                 print('test time : ', time.time() - start, 'sec/epoch => ', (time.time() - start) / 60, 'min')
-    
+
     cleanup()
 
 
@@ -191,7 +194,7 @@ def train(model, model_type, optimizer, scaler, train_loader, train_logger, epoc
         embedding_loss = kwargs['embedding_loss']
         feature_loss = kwargs['feature_loss']
         covariance_loss = kwargs['covariance_loss']
-    else: # NCF
+    else:  # NCF
         criterion = kwargs['criterion']
     for i, data in enumerate(train_loader):
         data_time.update(time.time() - end)
@@ -199,19 +202,26 @@ def train(model, model_type, optimizer, scaler, train_loader, train_logger, epoc
         with torch.cuda.amp.autocast():
             if model_type == "MAML":
                 (user, item_p, item_n, t_feature_p, t_feature_n, img_p, img_n) = data
-                user, item_p, item_n, t_feature_p, t_feature_n, img_p, img_n = user.cuda(dist.get_rank()), item_p.cuda(dist.get_rank()), \
-                                                                            item_n.cuda(dist.get_rank()), t_feature_p.cuda(dist.get_rank()), \
-                                                                            t_feature_n.cuda(dist.get_rank()), img_p.cuda(dist.get_rank()), \
-                                                                            img_n.cuda(dist.get_rank())
+                user, item_p, item_n, t_feature_p, t_feature_n, img_p, img_n = user.cuda(dist.get_rank()), item_p.cuda(
+                    dist.get_rank()), \
+                                                                               item_n.cuda(
+                                                                                   dist.get_rank()), t_feature_p.cuda(
+                    dist.get_rank()), \
+                                                                               t_feature_n.cuda(
+                                                                                   dist.get_rank()), img_p.cuda(
+                    dist.get_rank()), \
+                                                                               img_n.cuda(dist.get_rank())
                 a_u, a_i, a_i_feature, dist_a = model(user, torch.hstack([item_p.unsqueeze(1), item_n]), \
-                                                    torch.hstack([t_feature_p.unsqueeze(1), t_feature_n]),
-                                                    torch.hstack([img_p.unsqueeze(1), img_n]), kwargs['hier_attention'])
-            else: # NCF
+                                                      torch.hstack([t_feature_p.unsqueeze(1), t_feature_n]),
+                                                      torch.hstack([img_p.unsqueeze(1), img_n]),
+                                                      kwargs['hier_attention'])
+            else:  # NCF
                 (user, item, rating, t_feature, img) = data
                 user, item, rating, t_feature, img = user.cuda(dist.get_rank()), item.cuda(dist.get_rank()), \
-                                                    rating.cuda(dist.get_rank()), t_feature.cuda(dist.get_rank()), \
-                                                    img.cuda(dist.get_rank())
-                score = model(user, item, image=img, text=t_feature, feature_type=args.feature_type, hier_attention=kwargs['hier_attention'])
+                                                     rating.cuda(dist.get_rank()), t_feature.cuda(dist.get_rank()), \
+                                                     img.cuda(dist.get_rank())
+                score = model(user, item, image=img, text=t_feature, feature_type=args.feature_type,
+                              hier_attention=kwargs['hier_attention'])
             # Loss
             if model_type == "MAML":
                 loss_e = embedding_loss(dist_a[:, 0], dist_a[:, 1:])
@@ -232,14 +242,14 @@ def train(model, model_type, optimizer, scaler, train_loader, train_logger, epoc
                     rd_train_loss_e = reduce_tensor(loss_e.data, dist.get_world_size())
                     rd_train_loss_c = loss_c
                     rd_train_loss_f = loss_f
-            else: # NCF
+            else:  # NCF
                 loss = criterion(score, rating)
                 rd_train_loss = reduce_tensor(loss.data, dist.get_world_size())
 
         scaler.scale(loss).backward()
         scaler.step(optimizer)
         scaler.update()
-        
+
         if model_type == "MAML":
             total_loss.update(rd_train_loss.item(), user.shape[0])
             embed_loss.update(rd_train_loss_e.item(), user.shape[0])
@@ -248,25 +258,26 @@ def train(model, model_type, optimizer, scaler, train_loader, train_logger, epoc
             iter_time.update(time.time() - end)
             end = time.time()
         else:
-            total_loss.update(rd_train_loss.item(), user.shape[0]//5)
+            total_loss.update(rd_train_loss.item(), user.shape[0] // 5)
             iter_time.update(time.time() - end)
-            end = time.time()            
-            
+            end = time.time()
+
         if (i % 10 == 0) and (dist.get_rank() == 0):
             if model_type == "MAML":
                 print(f"[{epoch + 1}/{args.epoch}][{i}/{len(train_loader)}] Total loss : {total_loss.avg:.4f} \
                     Embedding loss : {embed_loss.avg:.4f} Feature loss : {feat_loss.avg:.4f} \
                     Covariance loss : {cov_loss.avg:.4f} Iter time : {iter_time.avg:.4f} Data time : {data_time.avg:.4f}")
-            else: # NCF
+            else:  # NCF
                 print(f"[{epoch + 1}/{args.epoch}][{i}/{len(train_loader)}] Total loss : {total_loss.avg:.4f} \
                     Iter time : {iter_time.avg:.4f} Data time : {data_time.avg:.4f}")
-                
+
     if dist.get_rank() == 0:
         if model_type == "MAML":
             train_logger.write([epoch, total_loss.avg, embed_loss.avg,
                                 feat_loss.avg, cov_loss.avg])
-        else: # NCF
+        else:  # NCF
             train_logger.write([epoch, total_loss.avg])
+
 
 def test(model, model_type, test_loader, test_logger, epoch, test_pos_item_num, item_num_dict, **kwargs):
     model.eval()
@@ -286,8 +297,8 @@ def test(model, model_type, test_loader, test_logger, epoch, test_pos_item_num, 
     iter_time = AverageMeter()
     k = [1, 3, 5, 10]
 
-    score_cat=torch.tensor([]).cuda(dist.get_rank())
-    
+    score_cat = torch.tensor([]).cuda(dist.get_rank())
+
     end = time.time()
     user_count = 0
     for i, (user, item, feature, image) in enumerate(test_loader):
@@ -299,21 +310,22 @@ def test(model, model_type, test_loader, test_logger, epoch, test_pos_item_num, 
                 feature.cuda(dist.get_rank(), non_blocking=True), image.cuda(dist.get_rank(), non_blocking=True)
             if model_type == "MAML":
                 _, _, _, score = model(user, item, feature, image, kwargs['hier_attention'])
-            else: # NCF
-                score = model(user, item, image=image, text=feature, feature_type=args.feature_type, hier_attention=kwargs['hier_attention'])
-            score_cat=torch.cat((score_cat, score))
+            else:  # NCF
+                score = model(user, item, image=image, text=feature, feature_type=args.feature_type,
+                              hier_attention=kwargs['hier_attention'])
+            score_cat = torch.cat((score_cat, score))
 
             if (i % 500) == 0 and (dist.get_rank() == 0):
                 print(f"test iter : {i}/{len(test_loader)}")
-                    
-            while(len(score_cat) >= item_num_dict[user_count]): 
+
+            while (len(score_cat) >= item_num_dict[user_count]):
                 score_sub_tensor = score_cat[:item_num_dict[user_count]]
                 score_cat = score_cat[item_num_dict[user_count]:]
                 for i in k:
                     if model_type == "MAML":
                         _, indices = torch.topk(-score_sub_tensor, i)
-                    else: # NCF
-                        _, indices = torch.topk(score_sub_tensor, i)    
+                    else:  # NCF
+                        _, indices = torch.topk(score_sub_tensor, i)
                     recommends = indices
                     gt_item = torch.tensor(range(test_pos_item_num[user_count])).cuda(dist.get_rank())
                     performance = get_performance(gt_item, recommends)
@@ -341,10 +353,15 @@ def test(model, model_type, test_loader, test_logger, epoch, test_pos_item_num, 
                     break
 
     if dist.get_rank() == 0:
-        print(f"{user_count} Users tested. Iteration time : {iter_time.avg:.5f}/user Data time : {data_time.avg:.5f}/user")
-        print(f"Epoch : [{epoch + 1}/{args.epoch}] Hit Ratio : {hr_10.avg:.4f} nDCG : {ndcg_10.avg:.4f} Hit Ratio 2 : {hr2_10.avg:.4f} Test Time : {iter_time.avg:.4f}/user")
-        test_logger.write([epoch, float(hr_1.avg), float(hr2_1.avg), float(ndcg_1.avg), float(hr_3.avg), float(hr2_3.avg), float(ndcg_3.avg)
-                            , float(hr_5.avg), float(hr2_5.avg), float(ndcg_5.avg), float(hr_10.avg), float(hr2_10.avg), float(ndcg_10.avg)])
+        print(
+            f"{user_count} Users tested. Iteration time : {iter_time.avg:.5f}/user Data time : {data_time.avg:.5f}/user")
+        print(
+            f"Epoch : [{epoch + 1}/{args.epoch}] Hit Ratio : {hr_10.avg:.4f} nDCG : {ndcg_10.avg:.4f} Hit Ratio 2 : {hr2_10.avg:.4f} Test Time : {iter_time.avg:.4f}/user")
+        test_logger.write(
+            [epoch, float(hr_1.avg), float(hr2_1.avg), float(ndcg_1.avg), float(hr_3.avg), float(hr2_3.avg),
+             float(ndcg_3.avg)
+                , float(hr_5.avg), float(hr2_5.avg), float(ndcg_5.avg), float(hr_10.avg), float(hr2_10.avg),
+             float(ndcg_10.avg)])
 
 
 def my_collate_trn(batch):
@@ -378,8 +395,9 @@ def my_collate_trn(batch):
         t_feature = torch.FloatTensor(t_feature)
         img = [element for item in batch for element in item[4]]
         img = torch.stack(img)
-    
+
         return [user, items, rating, t_feature, img]
+
 
 def my_collate_tst(batch):
     user = [items[0] for items in batch]
@@ -397,7 +415,7 @@ def init_process(rank, world_size, backend='nccl'):
     os.environ['MASTER_ADDR'] = args.ddp_addr
     os.environ['MASTER_PORT'] = args.ddp_port
     dist.init_process_group(backend, rank=rank, world_size=world_size)
-    print(f"DDP process initialized [{rank+1}/{world_size}] rank : {rank}.")
+    print(f"DDP process initialized [{rank + 1}/{world_size}] rank : {rank}.")
 
 
 def reduce_tensor(tensor, world_size):
@@ -405,9 +423,11 @@ def reduce_tensor(tensor, world_size):
     dist.all_reduce(rt, op=dist.ReduceOp.SUM)
     rt /= world_size
     return rt
-  
+
+
 def cleanup():
     dist.destroy_process_group()
+
 
 if __name__ == "__main__":
     args.world_size = torch.cuda.device_count()
