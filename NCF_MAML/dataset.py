@@ -15,6 +15,7 @@ def load_data(data_path, feature_type):
    
     feature_dir = os.path.join(data_path, '../')
     train_df = pd.read_feather(os.path.join(data_path, 'train_positive.ftr'))
+    val_df = pd.read_feather(os.path.join(data_path, 'val_positive.ftr'))
     test_df = pd.read_feather(os.path.join(data_path, 'test_positive.ftr'))
     train_ng_pool = pd.read_feather(os.path.join(data_path, 'train_negative.ftr'))
     test_negative = pd.read_feather(os.path.join(data_path, 'test_negative.ftr'))
@@ -27,8 +28,10 @@ def load_data(data_path, feature_type):
         item_num_dict[i] = test_pos_item_num[i] + test_negative[test_negative['userid'] == i]['test_negative'].item().shape[0]
         
     train_df = train_df.astype('int64')
+    val_df = val_df.astype('int64')
     test_df = test_df.astype('int64')
     train_df.rename(columns={"userid": "userID", "train_pos": "itemID"}, inplace=True)
+    val_df.rename(columns={"userid": "userID", "val_pos": "itemID"}, inplace=True)
     test_df.rename(columns={"userid": "userID", "test_pos": "itemID"}, inplace=True)
     train_ng_pool = train_ng_pool["train_negative"].tolist()
     test_negative = test_negative["test_negative"].tolist()
@@ -39,35 +42,41 @@ def load_data(data_path, feature_type):
 
     with open(os.path.join(feature_dir, "item_meta.json"), "rb") as f:
         meta_data = json.load(f)
-    with open(os.path.join(feature_dir, 'text_feature_vec.pickle'), 'rb') as f:
-        text_vec = pickle.load(f)
+    if feature_type == 'txt' or feature_type == 'all':
+        with open(os.path.join(feature_dir, 'text_feature_vec.pickle'), 'rb') as f:
+            text_vec = pickle.load(f)
 
     image_path_list = []
     id_list = index_info["itemid"].tolist()
     t_features = []
-    for item_id in id_list:
-        t_features.append(text_vec[item_id])
-        img_path = meta_data[f"{item_id}"]["image_path"]
-        image_path_list.append(os.path.abspath(os.path.join(feature_dir, img_path)))
-
-    t_features = np.array(t_features)
-    t_features = dict(enumerate(t_features, 0))
-
-    image_path_list = np.array(image_path_list)
-    images = {}
- 
-    if feature_type == "all" or feature_type == "img":
-        print("Loading images...")
-        transform = transforms.Compose([transforms.Resize((224, 224)),
-                                        transforms.ToTensor(),
-                                        transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                                            std=[0.229, 0.224, 0.225])])
-        for i in range(len(image_path_list)):
-            img = Image.open(image_path_list[i]).convert("RGB")
-            images[i] = transform(img)
-       
+    if feature_type != 'rating':
+        for item_id in id_list:
+            if feature_type == 'txt' or feature_type == 'all':
+                t_features.append(text_vec[item_id])
+            if feature_type == 'img' or feature_type == 'all':
+                img_path = meta_data[f"{item_id}"]["image_path"]
+                image_path_list.append(os.path.abspath(os.path.join(feature_dir, img_path)))
+        if feature_type == 'txt' or feature_type == 'all':
+            t_features = np.array(t_features)
+            t_features = dict(enumerate(t_features, 0))
+        if feature_type == 'img' or feature_type == 'all':
+            image_path_list = np.array(image_path_list)
+            images = {}
+        
+            if feature_type == "all" or feature_type == "img":
+                print("Loading images...")
+                transform = transforms.Compose([transforms.Resize((224, 224)),
+                                                transforms.ToTensor(),
+                                                transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                                                    std=[0.229, 0.224, 0.225])])
+                for i in range(len(image_path_list)):
+                    img = Image.open(image_path_list[i]).convert("RGB")
+                    images[i] = transform(img)
+    else:
+        t_features = np.zeros((2, 300))
+        images = {}                
     print(f"Data Loaded. num user : {num_user} num item : {num_item} {time.time() - start:.4f} sec")
-    return train_df, test_df, train_ng_pool, test_negative, num_user, num_item, t_features, images, test_pos_item_num, item_num_dict
+    return train_df, val_df, test_df, train_ng_pool, test_negative, num_user, num_item, t_features, images, test_pos_item_num, item_num_dict
 
 
 class CustomDataset(Dataset):
