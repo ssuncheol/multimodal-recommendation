@@ -39,6 +39,17 @@ class NeuralCF(nn.Module):
             self.v_feature_c4 = self.v_feature_extractor.layer3[1].conv2.out_channels
             self.v_feature_c5 = self.v_feature_extractor.layer4[1].conv2.out_channels
 
+            self.conv_key1 = nn.Conv2d(self.v_feature_c1, embedding_size * 2, 1)
+            self.conv_key2 = nn.Conv2d(self.v_feature_c2, embedding_size * 2, 1)
+            self.conv_key3 = nn.Conv2d(self.v_feature_c3, embedding_size * 2, 1)
+            self.conv_key4 = nn.Conv2d(self.v_feature_c4, embedding_size * 2, 1)
+            self.conv_key5 = nn.Conv2d(self.v_feature_c5, embedding_size * 2, 1)
+
+            self.conv_value1 = nn.Conv2d(self.v_feature_c1, self.v_feature_dim, 1)
+            self.conv_value2 = nn.Conv2d(self.v_feature_c2, self.v_feature_dim, 1)
+            self.conv_value3 = nn.Conv2d(self.v_feature_c3, self.v_feature_dim, 1)
+            self.conv_value4 = nn.Conv2d(self.v_feature_c4, self.v_feature_dim, 1)
+            self.cnov_value5 = nn.Conv2d(self.v_feature_c5, self.v_feature_dim, 1)
             if kwargs['fine_tuning'] == False:
                 self.v_feature_extractor.eval()
                 for param in self.v_feature_extractor.parameters():
@@ -98,17 +109,6 @@ class NeuralCF(nn.Module):
 
         self._init_weight_()
 
-        self.conv_key1 = nn.Conv2d(self.v_feature_c1, embedding_size * 2, 1)
-        self.conv_key2 = nn.Conv2d(self.v_feature_c2, embedding_size * 2, 1)
-        self.conv_key3 = nn.Conv2d(self.v_feature_c3, embedding_size * 2, 1)
-        self.conv_key4 = nn.Conv2d(self.v_feature_c4, embedding_size * 2, 1)
-        self.conv_key5 = nn.Conv2d(self.v_feature_c5, embedding_size * 2, 1)
-
-        self.conv_value1 = nn.Conv2d(self.v_feature_c1, self.v_feature_dim, 1)
-        self.conv_value2 = nn.Conv2d(self.v_feature_c2, self.v_feature_dim, 1)
-        self.conv_value3 = nn.Conv2d(self.v_feature_c3, self.v_feature_dim, 1)
-        self.conv_value4 = nn.Conv2d(self.v_feature_c4, self.v_feature_dim, 1)
-        self.cnov_value5 = nn.Conv2d(self.v_feature_c5, self.v_feature_dim, 1)
 
     def _init_weight_(self):
         nn.init.normal_(self.user_embedding_gmf.weight, std=0.01)
@@ -153,9 +153,6 @@ class NeuralCF(nn.Module):
         return attention_matrix
 
     def forward(self, user_indices, item_indices, **kwargs):
-        key_modules = [self.conv_key1, self.conv_key2, self.conv_key3, self.conv_key4, self.conv_key5]
-        value_modules = [self.conv_value1, self.conv_value2, self.conv_value3, self.conv_value4, self.cnov_value5]
-
         user_gmf = self.user_embedding_gmf(user_indices)
         item_gmf = self.item_embedding_gmf(item_indices)
 
@@ -164,6 +161,8 @@ class NeuralCF(nn.Module):
 
         if (kwargs['feature_type'] == 'img') | (kwargs['feature_type'] == 'all'):
             if kwargs['hier_attention']:
+                key_modules = [self.conv_key1, self.conv_key2, self.conv_key3, self.conv_key4, self.conv_key5]
+                value_modules = [self.conv_value1, self.conv_value2, self.conv_value3, self.conv_value4, self.cnov_value5]
                 image = self.hierarchical_attention(self.v_feature_extractor, key_modules, value_modules,
                                                     kwargs['image'],
                                                     user_mlp, item_mlp)
@@ -187,7 +186,7 @@ class NeuralCF(nn.Module):
 
 class MAML(nn.Module):
     def __init__(self, n_users, n_items, embed_dim, dropout_rate, feature_type, t_feature_dim,
-                 v_feature_extractor_path, fine_tuning, rank, att_type):
+                 v_feature_extractor_path, fine_tuning, rank, att_type, hier_att):
         super(MAML, self).__init__()
         self.embed_dim = embed_dim
         self.n_users = n_users
@@ -219,19 +218,20 @@ class MAML(nn.Module):
             self.v_feature_extractor.eval()
             for param in self.v_feature_extractor.parameters():
                 param.requires_grad = False
+        
+        if hier_att:
+            # For attention Layers
+            self.conv_key1 = nn.Conv2d(self.v_feature_c1, self.embed_dim * 2, 1)
+            self.conv_key2 = nn.Conv2d(self.v_feature_c2, self.embed_dim * 2, 1)
+            self.conv_key3 = nn.Conv2d(self.v_feature_c3, self.embed_dim * 2, 1)
+            self.conv_key4 = nn.Conv2d(self.v_feature_c4, self.embed_dim * 2, 1)
+            self.conv_key5 = nn.Conv2d(self.v_feature_c5, self.embed_dim * 2, 1)
 
-        # For attention Layers
-        self.conv_key1 = nn.Conv2d(self.v_feature_c1, self.embed_dim * 2, 1)
-        self.conv_key2 = nn.Conv2d(self.v_feature_c2, self.embed_dim * 2, 1)
-        self.conv_key3 = nn.Conv2d(self.v_feature_c3, self.embed_dim * 2, 1)
-        self.conv_key4 = nn.Conv2d(self.v_feature_c4, self.embed_dim * 2, 1)
-        self.conv_key5 = nn.Conv2d(self.v_feature_c5, self.embed_dim * 2, 1)
-
-        self.conv_value1 = nn.Conv2d(self.v_feature_c1, self.v_feature_dim, 1)
-        self.conv_value2 = nn.Conv2d(self.v_feature_c2, self.v_feature_dim, 1)
-        self.conv_value3 = nn.Conv2d(self.v_feature_c3, self.v_feature_dim, 1)
-        self.conv_value4 = nn.Conv2d(self.v_feature_c4, self.v_feature_dim, 1)
-        self.cnov_value5 = nn.Conv2d(self.v_feature_c5, self.v_feature_dim, 1)
+            self.conv_value1 = nn.Conv2d(self.v_feature_c1, self.v_feature_dim, 1)
+            self.conv_value2 = nn.Conv2d(self.v_feature_c2, self.v_feature_dim, 1)
+            self.conv_value3 = nn.Conv2d(self.v_feature_c3, self.v_feature_dim, 1)
+            self.conv_value4 = nn.Conv2d(self.v_feature_c4, self.v_feature_dim, 1)
+            self.cnov_value5 = nn.Conv2d(self.v_feature_c5, self.v_feature_dim, 1)
 
         if self.att_type == 'BAM':
             self.bam1 = BAM(64)
@@ -377,7 +377,7 @@ class MAML(nn.Module):
         attention = self.attention(input_cat)
         attention = self.embed_dim * F.softmax(attention, dim=-1)
         temp = torch.mul(attention, p_u) - torch.mul(attention, q_i)
-        dist = torch.sum(temp ** 2, axis=-1)
+        dist = torch.sqrt(torch.sum(temp ** 2, axis=-1))
 
         return p_u, q_i, q_i_feature, dist
 
