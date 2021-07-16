@@ -119,7 +119,7 @@ def main(rank, args):
                          num_layers=args.num_layers, feature_type=args.feature_type, text=t_feature_dim,
                          extractor_path=args.cnn_path, rank=rank, fine_tuning=args.fine_tuning, att_type=args.att_type).cuda(rank)
 
-    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[rank], find_unused_parameters=True) 
+    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[rank]) # , find_unused_parameters=True 
 
     # Load from checkpoint
     if args.load_path is not None:
